@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "490914298116",
+    "project_id": "checklist-choferes",
+    "storage_bucket": "checklist-choferes.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:490914298116:android:4f9999bb3c8fd8f81f7851",
+        "android_client_info": {
+          "package_name": "com.example.checklistchofer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBm23zhtL9tsDkTz0WF7OAIg0yLzCJ_THU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
