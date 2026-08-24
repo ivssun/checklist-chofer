@@ -34,6 +34,7 @@ data class Viaje(
     val camionId: String? = null, // null si tipoUnidad es RENTA u Otro
     val tipoUnidad: String = "", // GDE, MED, RENTA, Otro
     val placa: String = "", // placa del vehículo
+    val detalleRenta: String = "", // marca/modelo, solo aplica si tipoUnidad = RENTA
     val economico: String = "", // No. de Unidad / Económico
     val fecha: Timestamp? = null,
     val horaLlegadaMatriz: Timestamp? = null,

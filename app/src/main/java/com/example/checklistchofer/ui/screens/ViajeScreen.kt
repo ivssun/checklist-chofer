@@ -17,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -24,6 +25,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,7 +55,10 @@ fun ViajeScreen(
     val camionSeleccionado by viewModel.camionSeleccionado.collectAsState()
     val tipoUnidad by viewModel.tipoUnidad.collectAsState()
     val placaManual by viewModel.placaManual.collectAsState()
+    val usarPlacaOtro by viewModel.usarPlacaOtro.collectAsState()
     val detalleRenta by viewModel.detalleRenta.collectAsState()
+    val usarDetalleRentaOtro by viewModel.usarDetalleRentaOtro.collectAsState()
+    val detalleRentaManual by viewModel.detalleRentaManual.collectAsState()
     val placaRentaSeleccionada by viewModel.placaRentaSeleccionada.collectAsState()
     val economicoManual by viewModel.economicoManual.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -85,7 +90,11 @@ fun ViajeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Checklist Diario de Chofer") }
+                title = { Text("Checklist Diario de Chofer") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -137,13 +146,17 @@ fun ViajeScreen(
 
                 when (tipoUnidad) {
                     "RENTA" -> {
-                        // Selector de placa RENTA
-                        DropdownSelector(
+                        // Selector de placa RENTA (con opción "Otro")
+                        DropdownSelectorConOtro(
                             label = "placas",
                             selectedItem = placaRentaSeleccionada.ifEmpty { null },
                             items = viewModel.getPlacasRenta(),
                             itemLabel = { it },
-                            onItemSelected = { viewModel.seleccionarPlacaRenta(it) }
+                            onItemSelected = { viewModel.seleccionarPlacaRenta(it) },
+                            usandoOtro = usarPlacaOtro,
+                            valorManual = placaManual,
+                            onSeleccionarOtro = { viewModel.seleccionarPlacaOtro() },
+                            onValorManualChange = { viewModel.actualizarPlacaManual(it) }
                         )
                     }
                     "Otro" -> {
@@ -161,13 +174,17 @@ fun ViajeScreen(
                         )
                     }
                     else -> {
-                        // Selector de Camión para GDE/MED
-                        DropdownSelector(
+                        // Selector de Camión para GDE/MED (con opción "Otro")
+                        DropdownSelectorConOtro(
                             label = "placa",
                             selectedItem = camionSeleccionado,
                             items = camionesFiltered,
                             itemLabel = { it.placa },
-                            onItemSelected = { viewModel.seleccionarCamion(it) }
+                            onItemSelected = { viewModel.seleccionarCamion(it) },
+                            usandoOtro = usarPlacaOtro,
+                            valorManual = placaManual,
+                            onSeleccionarOtro = { viewModel.seleccionarPlacaOtro() },
+                            onValorManualChange = { viewModel.actualizarPlacaManual(it) }
                         )
                     }
                 }
@@ -175,12 +192,16 @@ fun ViajeScreen(
                 // Sección Detalle Renta (solo si es RENTA)
                 if (tipoUnidad == "RENTA") {
                     Text("Detalle Renta", modifier = Modifier.padding(top = 16.dp))
-                    DropdownSelector(
+                    DropdownSelectorConOtro(
                         label = "detalle",
                         selectedItem = detalleRenta.ifEmpty { null },
                         items = marcasRenta,
                         itemLabel = { it },
-                        onItemSelected = { viewModel.seleccionarDetalleRenta(it) }
+                        onItemSelected = { viewModel.seleccionarDetalleRenta(it) },
+                        usandoOtro = usarDetalleRentaOtro,
+                        valorManual = detalleRentaManual,
+                        onSeleccionarOtro = { viewModel.seleccionarDetalleRentaOtro() },
+                        onValorManualChange = { viewModel.actualizarDetalleRentaManual(it) }
                     )
                 }
 
@@ -207,9 +228,11 @@ fun ViajeScreen(
                 Button(
                     onClick = { viewModel.iniciarViaje() },
                     enabled = choferSeleccionado != null && economicoManual.isNotEmpty() && when (tipoUnidad) {
-                        "RENTA" -> placaRentaSeleccionada.isNotEmpty() && detalleRenta.isNotEmpty()
+                        "RENTA" ->
+                            (if (usarPlacaOtro) placaManual.isNotEmpty() else placaRentaSeleccionada.isNotEmpty()) &&
+                            (if (usarDetalleRentaOtro) detalleRentaManual.isNotEmpty() else detalleRenta.isNotEmpty())
                         "Otro" -> placaManual.isNotEmpty()
-                        else -> camionSeleccionado != null
+                        else -> if (usarPlacaOtro) placaManual.isNotEmpty() else camionSeleccionado != null
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -262,6 +285,79 @@ fun <T> DropdownSelector(
                     }
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> DropdownSelectorConOtro(
+    label: String,
+    selectedItem: T?,
+    items: List<T>,
+    itemLabel: (T) -> String,
+    onItemSelected: (T) -> Unit,
+    usandoOtro: Boolean,
+    valorManual: String,
+    onSeleccionarOtro: () -> Unit,
+    onValorManualChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = when {
+                    usandoOtro -> "Otro"
+                    selectedItem != null -> itemLabel(selectedItem)
+                    else -> "Seleccionar $label"
+                },
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items.forEach { item ->
+                DropdownMenuItem(
+                    text = { Text(itemLabel(item)) },
+                    onClick = {
+                        onItemSelected(item)
+                        expanded = false
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Otro") },
+                onClick = {
+                    onSeleccionarOtro()
+                    expanded = false
+                }
+            )
+        }
+
+        if (usandoOtro) {
+            OutlinedTextField(
+                value = valorManual,
+                onValueChange = onValorManualChange,
+                placeholder = { Text("Ingresar dato") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(8.dp)
+            )
         }
     }
 }

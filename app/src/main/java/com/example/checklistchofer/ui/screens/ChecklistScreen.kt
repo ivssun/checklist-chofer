@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -23,6 +24,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -72,7 +74,15 @@ fun ChecklistScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Checklist Viaje") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Checklist Viaje") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         if (isLoading) {
@@ -138,7 +148,7 @@ fun ChecklistScreen(
                 )
 
                 // ========== INSPECCIÓN GENERAL ==========
-                SeccionTitulo("Inspección General")
+                SeccionTitulo("3. Inspección General")
 
                 CampoInspeccionSiNoNa("Llantas (desgaste)", viaje!!.inspeccionGeneral.llantasDesgaste, { v, o -> viewModel.updateInspeccion("1", v, o) }, "viajes/$viajeId/checklist/inspeccion_1.jpg", { viewModel.updateFotoInspeccion("1", it) })
                 CampoInspeccionSiNoNa("Llanta de refacción", viaje!!.inspeccionGeneral.llantaRefaccion, { v, o -> viewModel.updateInspeccion("2", v, o) }, "viajes/$viajeId/checklist/inspeccion_2.jpg", { viewModel.updateFotoInspeccion("2", it) })
@@ -299,6 +309,7 @@ fun SeccionTitulo(titulo: String) {
         titulo,
         fontSize = 18.sp,
         fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
     )
 }

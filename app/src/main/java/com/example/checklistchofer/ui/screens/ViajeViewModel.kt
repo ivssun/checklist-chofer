@@ -37,12 +37,22 @@ class ViajeViewModel(
     private val _placaManual = MutableStateFlow("")
     val placaManual: StateFlow<String> = _placaManual.asStateFlow()
 
+    // "Otro" dentro del dropdown de placa (aplica a GDE/MED y RENTA; usa _placaManual como texto)
+    private val _usarPlacaOtro = MutableStateFlow(false)
+    val usarPlacaOtro: StateFlow<Boolean> = _usarPlacaOtro.asStateFlow()
+
     private val _camionesTopo = MutableStateFlow<List<Camion>>(emptyList())
     val camionesFiltered: StateFlow<List<Camion>> = _camionesTopo.asStateFlow()
 
     private val _marcasRenta = listOf("Ford", "Toyota", "Caja", "Redila", "Batea", "Volteo")
     private val _detalleRenta = MutableStateFlow("")
     val detalleRenta: StateFlow<String> = _detalleRenta.asStateFlow()
+
+    private val _usarDetalleRentaOtro = MutableStateFlow(false)
+    val usarDetalleRentaOtro: StateFlow<Boolean> = _usarDetalleRentaOtro.asStateFlow()
+
+    private val _detalleRentaManual = MutableStateFlow("")
+    val detalleRentaManual: StateFlow<String> = _detalleRentaManual.asStateFlow()
 
     private val _placarenta = listOf("RENTA001", "RENTA002", "RENTA003", "RENTA004", "RENTA005", "RENTA006")
     private val _placaRentaSeleccionada = MutableStateFlow("")
@@ -107,14 +117,24 @@ class ViajeViewModel(
         // Limpiar selección anterior
         _camionSeleccionado.value = null
         _placaManual.value = ""
+        _usarPlacaOtro.value = false
         _detalleRenta.value = ""
+        _usarDetalleRentaOtro.value = false
+        _detalleRentaManual.value = ""
         _placaRentaSeleccionada.value = ""
         _economicoManual.value = ""
     }
 
     fun seleccionarCamion(camion: Camion) {
         _camionSeleccionado.value = camion
+        _usarPlacaOtro.value = false
         _placaManual.value = ""
+    }
+
+    fun seleccionarPlacaOtro() {
+        _usarPlacaOtro.value = true
+        _camionSeleccionado.value = null
+        _placaRentaSeleccionada.value = ""
     }
 
     fun actualizarPlacaManual(placa: String) {
@@ -123,10 +143,21 @@ class ViajeViewModel(
 
     fun seleccionarDetalleRenta(marca: String) {
         _detalleRenta.value = marca
+        _usarDetalleRentaOtro.value = false
+    }
+
+    fun seleccionarDetalleRentaOtro() {
+        _usarDetalleRentaOtro.value = true
+        _detalleRenta.value = ""
+    }
+
+    fun actualizarDetalleRentaManual(valor: String) {
+        _detalleRentaManual.value = valor
     }
 
     fun seleccionarPlacaRenta(placa: String) {
         _placaRentaSeleccionada.value = placa
+        _usarPlacaOtro.value = false
     }
 
     fun actualizarEconomicoManual(economico: String) {
@@ -149,9 +180,10 @@ class ViajeViewModel(
             return
         }
 
-        // Determinar camionId y placa según tipo
+        // Determinar camionId, placa y detalleRenta según tipo
         val camionId: String?
         val placa: String
+        var detalleRentaVal = ""
 
         when (tipo) {
             "Otro" -> {
@@ -164,26 +196,57 @@ class ViajeViewModel(
                 placa = placaManualVal
             }
             "RENTA" -> {
-                val placaRenta = _placaRentaSeleccionada.value
-                if (placaRenta.isEmpty()) {
-                    _error.value = "Selecciona una placa RENTA"
-                    return
+                if (_usarPlacaOtro.value) {
+                    val placaManualVal = _placaManual.value.trim()
+                    if (placaManualVal.isEmpty()) {
+                        _error.value = "Ingresa la placa"
+                        return
+                    }
+                    placa = placaManualVal
+                } else {
+                    val placaRenta = _placaRentaSeleccionada.value
+                    if (placaRenta.isEmpty()) {
+                        _error.value = "Selecciona una placa RENTA"
+                        return
+                    }
+                    placa = placaRenta
                 }
-                if (_detalleRenta.value.isEmpty()) {
-                    _error.value = "Selecciona un detalle de marca"
-                    return
+
+                if (_usarDetalleRentaOtro.value) {
+                    val detalleManualVal = _detalleRentaManual.value.trim()
+                    if (detalleManualVal.isEmpty()) {
+                        _error.value = "Ingresa el detalle de marca"
+                        return
+                    }
+                    detalleRentaVal = detalleManualVal
+                } else {
+                    if (_detalleRenta.value.isEmpty()) {
+                        _error.value = "Selecciona un detalle de marca"
+                        return
+                    }
+                    detalleRentaVal = _detalleRenta.value
                 }
+
                 camionId = null
-                placa = placaRenta
             }
             else -> {
-                val camion = _camionSeleccionado.value
-                if (camion == null) {
-                    _error.value = "Selecciona un camión"
-                    return
+                if (_usarPlacaOtro.value) {
+                    val placaManualVal = _placaManual.value.trim()
+                    if (placaManualVal.isEmpty()) {
+                        _error.value = "Ingresa la placa"
+                        return
+                    }
+                    camionId = null
+                    placa = placaManualVal
+                } else {
+                    val camion = _camionSeleccionado.value
+                    if (camion == null) {
+                        _error.value = "Selecciona un camión"
+                        return
+                    }
+                    camionId = camion.id
+                    placa = camion.placa
                 }
-                camionId = camion.id
-                placa = camion.placa
             }
         }
 
@@ -200,6 +263,7 @@ class ViajeViewModel(
                     camionId = camionId,
                     tipoUnidad = tipo,
                     placa = placa,
+                    detalleRenta = detalleRentaVal,
                     economico = economico,
                     fecha = Timestamp(Date()),
                     horaLlegadaMatriz = Timestamp(Date()),

@@ -2,7 +2,14 @@
 
 **Última actualización**: 2026-08-23 (noche)  
 **Demo objetivo**: Lunes 2026-08-25  
-**Estado general**: Flujo Android completo (Pantalla 1 + Checklist + Bitácora/Pantalla 2 + fotos); falta desktop
+**Estado general**: Android completo y distribuido (repo GitHub privado + APK vía Release); falta app de supervisor (pendiente confirmar: web con React+Vite+Firebase Hosting en vez del plan original Java/Swing)
+
+### Fix reciente: opción "Otro" en dropdowns de catálogo (2026-08-23)
+- [x] Placas GDE/MED: dropdown + opción "Otro" (texto manual)
+- [x] Placa RENTA: dropdown + opción "Otro" (texto manual)
+- [x] Detalle Renta (marca): dropdown + opción "Otro" (texto manual)
+- [x] Chofer: se mantiene solo catálogo (decisión explícita del usuario, no cambia)
+- [x] Fix de bug preexistente: `detalleRenta` se validaba como obligatorio pero nunca se guardaba en Firestore — ahora sí se persiste
 
 ---
 
@@ -13,8 +20,9 @@
 | **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos) | 95% |
 | **Firebase Backend** | ✅ Listo (Firestore + Storage con plan Blaze) | 100% |
 | **Desktop App (Java)** | ❌ No iniciado | 0% |
-| **Fotos/Storage** | ❌ No implementado | 0% |
+| **Fotos/Storage** | ✅ Completo | 100% |
 | **Botones especiales** | ✅ Listo | 100% |
+| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release | 100% |
 
 ---
 

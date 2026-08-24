@@ -40,6 +40,7 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   camionId: string|null,      // null si tipo = RENTA u Otro
   tipoUnidad: "GDE" | "MED" | "RENTA" | "Otro",
   placa: string,              // placa del vehículo (ej. "ABC123", "RENTA001")
+  detalleRenta: string,       // marca/modelo, solo aplica si tipoUnidad = RENTA (string vacío si no aplica)
   economico: string,          // No. de Unidad / Económico (ingreso manual, obligatorio)
   fecha: timestamp,           // automática al crear
   horaLlegadaMatriz: timestamp|null,  // se asigna al crear
@@ -106,11 +107,13 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
 2. **Nombre**: dropdown de choferes activos (autocomplete)
 3. **Tipo de Unidad**: dropdown (GDE, MED, RENTA, Otro)
 4. **Placas** (dinámico según tipo):
-   - **GDE/MED**: dropdown de camiones filtrados por tipo (muestra placa)
-   - **RENTA**: dropdown de placas predefinidas (RENTA001 a RENTA006)
-   - **Otro**: campo de texto manual (ingresa placa)
-5. **Detalle Renta** (solo si tipo = RENTA): dropdown de marcas (Ford, Toyota, Caja, Redila, Batea, Volteo)
+   - **GDE/MED**: dropdown de camiones filtrados por tipo (muestra placa) + opción "Otro" (texto manual, por si el camión no está registrado en el catálogo)
+   - **RENTA**: dropdown de placas predefinidas (RENTA001 a RENTA006) + opción "Otro" (texto manual)
+   - **Otro** (tipo de unidad): campo de texto manual directo (ingresa placa)
+5. **Detalle Renta** (solo si tipo = RENTA): dropdown de marcas (Ford, Toyota, Caja, Redila, Batea, Volteo) + opción "Otro" (texto manual)
 6. **No. de Unidad / Económico**: campo de texto (ingreso manual, obligatorio para todos)
+
+**Nota sobre "Otro" en dropdowns de catálogo**: por decisión del usuario (2026-08-23), los dropdowns de Placas (GDE/MED y RENTA) y Detalle Renta incluyen una opción "Otro" que revela un campo de texto libre, para no bloquear al chofer si el dato no está registrado en el catálogo. El dropdown de **Chofer NO tiene esta opción** — el roster de choferes se mantiene siempre controlado por catálogo (se administra desde la app de supervisor).
 
 **Validaciones**:
 - Chofer requerido
