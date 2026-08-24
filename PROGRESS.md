@@ -2,14 +2,24 @@
 
 **Última actualización**: 2026-08-23 (noche)  
 **Demo objetivo**: Lunes 2026-08-25  
-**Estado general**: Android completo y distribuido (repo GitHub privado + APK vía Release); falta app de supervisor (pendiente confirmar: web con React+Vite+Firebase Hosting en vez del plan original Java/Swing)
+**Estado general**: Android completo, con colores de marca y distribuido (repo GitHub privado + APK vía Release v0.2). App Supervisor: plan cambiado de Java/Swing a **app web** — debate y decisión documentados en CLAUDE.md, construcción del proyecto AÚN NO ha arrancado.
 
-### Fix reciente: opción "Otro" en dropdowns de catálogo (2026-08-23)
+### Sesión tarde/noche (2026-08-23): "Otro" en dropdowns, compresión de fotos, tema de color
 - [x] Placas GDE/MED: dropdown + opción "Otro" (texto manual)
 - [x] Placa RENTA: dropdown + opción "Otro" (texto manual)
 - [x] Detalle Renta (marca): dropdown + opción "Otro" (texto manual)
 - [x] Chofer: se mantiene solo catálogo (decisión explícita del usuario, no cambia)
 - [x] Fix de bug preexistente: `detalleRenta` se validaba como obligatorio pero nunca se guardaba en Firestore — ahora sí se persiste
+- [x] Fotos: redimensión (máx. 1280px) + recompresión JPEG (calidad 75%) antes de subir a Storage, corrige rotación EXIF
+- [x] Tema de color con verde de marca Panissimo (`#1F6E44`): TopAppBar, botones, títulos de sección del checklist; desactivado dynamic color de Android 12+
+- [x] Repo actualizado en GitHub + Release v0.2-demo con el APK más reciente
+
+### Debate: stack de la App Supervisor
+- Usuario pidió cambiar de plan original (Java/Swing) a **app web**
+- Propuesta acordada (NO iniciada): React + Vite + Firebase Web SDK cliente + Firebase Hosting (ver CLAUDE.md → "Decisiones de Diseño — App Supervisor")
+- Se resolvió también: Firebase Storage requiere plan Blaze (ya activado); costo esperado real $0 para esta escala de uso
+- Usuario dio especificación detallada de requisitos del supervisor (filtros, CRUD con soft-delete, imprimir, rendimiento combustible) — documentada en CLAUDE.md
+- **Próximo paso cuando se retome**: confirmar arranque del proyecto web (estructura Vite, conexión a Firebase, primera pantalla de catálogos)
 
 ---
 
@@ -17,12 +27,12 @@
 
 | Componente | Estado | % Completo |
 |-----------|--------|-----------|
-| **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos) | 95% |
+| **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos → tema de color) | 100% |
 | **Firebase Backend** | ✅ Listo (Firestore + Storage con plan Blaze) | 100% |
-| **Desktop App (Java)** | ❌ No iniciado | 0% |
-| **Fotos/Storage** | ✅ Completo | 100% |
+| **App Supervisor (Web)** | ❌ No iniciada — stack decidido (React+Vite+Firebase Hosting), pendiente arrancar | 0% |
+| **Fotos/Storage** | ✅ Completo (con compresión) | 100% |
 | **Botones especiales** | ✅ Listo | 100% |
-| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release | 100% |
+| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.2-demo) | 100% |
 
 ---
 
@@ -119,27 +129,29 @@
 
 ## ❌ No Iniciado - Fase Posterior
 
-### Desktop App (Java + Swing)
-- [ ] Proyecto Gradle inicial
-- [ ] Dependencies: Swing, Apache POI
-- [ ] Dashboard principal con panel de control
+### App Supervisor (Web — React + Vite + Firebase Hosting)
+**Cambio de plan (2026-08-23)**: reemplaza el plan original de Java + Swing + Apache POI. Ver "Decisiones de Diseño — App Supervisor" en CLAUDE.md para el debate completo.
+- [ ] Proyecto Vite inicial + conexión a Firebase Web SDK (Firestore + Storage)
+- [ ] Dashboard principal
 - [ ] **Filtros**: fecha, placa, chofer, destino
-- [ ] **CRUD Catálogos**:
-  - [ ] Agregar/editar/eliminar choferes
-  - [ ] Agregar/editar/eliminar camiones
-  - [ ] Agregar/editar/eliminar destinos
-  - [ ] Soft-delete (bool activo → inactivo)
+- [ ] **CRUD Catálogos** (botones explícitos tipo "Agregar empleado"/"Editar"/"Eliminar", el supervisor no sabe de BDs):
+  - [ ] Agregar/editar/eliminar (soft) choferes
+  - [ ] Agregar/editar/eliminar (soft) camiones/placas
+  - [ ] Agregar/editar/eliminar (soft) destinos
+  - [ ] Soft-delete (bool activo → inactivo) en todos los catálogos
 - [ ] **Visualización de viajes**:
   - [ ] Filtros aplicados
   - [ ] Estado: activo vs concluido
   - [ ] Datos en tabla
-- [ ] **Generación de reportes**:
-  - [ ] Leer datos de Firestore
-  - [ ] Llenar plantilla Word (Apache POI)
-  - [ ] Exportar/imprimir PDF
+- [ ] **Imprimir formato con respuestas**:
+  - [ ] Vista HTML imprimible (reemplaza plan original de generar .docx con Apache POI)
+  - [ ] "Imprimir → Guardar como PDF" del navegador
 - [ ] **Métricas**:
+  - [ ] Cantidad de combustible cargado por viaje
   - [ ] Rendimiento combustible: (KM_final_último - KM_inicial_primero) / sum(litros)
   - [ ] Válido solo si tanque salió y regresó lleno
+  - [ ] Otras métricas útiles a criterio (ej. alerta de servicio, promedio por chofer/placa)
+- [ ] **Deploy**: Firebase Hosting, dar el link al supervisor
   - [ ] Alerta servicio: si (km_salida - kilometrajeUltimoServicio) ≥ 9000
 
 ---
@@ -180,10 +192,10 @@
 
 ### Nice-to-Have
 6. ✅ Fotos en observaciones
-7. ❌ Desktop app
-8. ❌ Generación de Word
+7. ❌ App Supervisor (web, ver arriba) — no iniciada
+8. ❌ Impresión de reporte (vista imprimible del navegador, no Word)
 
-**Plan**: Android funcional completo, incluyendo fotos. Desktop = fase 2.
+**Plan**: Android funcional completo, incluyendo fotos. App Supervisor = fase 2.
 
 ---
 

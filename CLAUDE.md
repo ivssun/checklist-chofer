@@ -9,9 +9,9 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
 - No se requiere UI bonita, solo funcional.
 
 ## Stack técnico
-- **App móvil**: Android nativo, Kotlin, API mínima 8 (Oreo)
-- **App escritorio**: Java, Swing (UI), Apache POI (generación de Word), Firebase Admin SDK
-- **Backend**: Firebase Firestore (proyecto checklist-choferes, ya creado, modo prueba, región us-central1) + Firebase Storage (para fotos)
+- **App móvil**: Android nativo, Kotlin, Jetpack Compose, minSdk 26 (Oreo)
+- **App supervisor**: cambiada de plan (2026-08-23) — ver [Decisiones de Diseño — App Supervisor](#-decisiones-de-diseño--app-supervisor-2026-08-23) más abajo. Propuesta actual (NO iniciada aún, pendiente de confirmación final para arrancar): **app web** (React + Vite) + Firebase Web SDK cliente (sin backend propio) + **Firebase Hosting** para publicarla con un link. Reemplaza el plan original de Java/Swing/Apache POI.
+- **Backend**: Firebase Firestore (proyecto checklist-choferes, modo prueba, región us-central1) + Firebase Storage (para fotos, plan Blaze activo desde 2026-08-23 — ver nota de facturación abajo)
 - Sin restricciones de librerías adicionales si son necesarias
 
 ## Esquema de datos (Firestore)
@@ -166,22 +166,29 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   - Al completar último destino → viaje.concluido = true
 - Botón siempre visible: "+ Agregar carga de combustible" (ubicación, kilometraje, costo/litro, litros) → cualquier momento, no bloquea nada
 
-## FLUJO APP ESCRITORIO (Supervisor, Windows/Java) — fase posterior a Android
+## FLUJO APP SUPERVISOR — PENDIENTE DE INICIAR (propuesta, no confirmada aún)
+
+Acceso: desde Windows, vía navegador (URL de Firebase Hosting), no una app instalada. Ver debate de stack en [Decisiones de Diseño — App Supervisor](#-decisiones-de-diseño--app-supervisor-2026-08-23).
+
+Hay 2 tipos de usuario en el sistema: **Chofer** (Android) y **Supervisor** (esta app web). Sin autenticación/login por ahora (acceso directo, ver "Fuera de alcance").
 
 ### Dashboard
 - Filtros: fecha, placa, chofer, destino
-- Lista de viajes con indicador activo/concluido
+- Lista de viajes con indicador **activo vs concluido** (campo `concluido` bool, ya existe en Firestore)
 - Alerta visual si diferencia km >= 9000 vs kilometrajeUltimoServicio
+- Datos útiles a mostrar: cantidad de combustible cargado por viaje, rendimiento (ver fórmula abajo), y otras métricas que se consideren útiles
 
 ### Detalle de viaje (solo lectura, sin edición)
 - Todos los campos del checklist, itinerario, notas/fotos
-- Botón "Imprimir/Generar Word" (Apache POI, usa plantilla de Checklist.docx)
-- Rendimiento combustible: (kmFinal último destino − kmInicial primer destino) / suma litros cargados. Nota: solo válido si tanque salió y regresó lleno al 100%
+- Botón "Imprimir" con las respuestas ya asentadas — propuesta: vista HTML imprimible + diálogo nativo del navegador "Imprimir → Guardar como PDF" (reemplaza el plan original de generar .docx con Apache POI; más simple y rápido de construir)
+- Rendimiento combustible: (kmFinal último destino − kmInicial primer destino) / suma litros cargados durante el viaje. **Nota**: solo válido si el tanque salió y regresó lleno al 100%
 
 ### Administración de catálogos (CRUD, soft-delete con bool activo)
-- Pestañas: Choferes / Camiones / Destinos
-- Botones Agregar/Editar/Eliminar (eliminar = activo -> false, nunca borra)
-- Alta de camión incluye definir posicionesLlantas manualmente
+- Pestañas: Choferes / Camiones (Placas) / Destinos
+- El supervisor no sabe de bases de datos — se facilita con botones explícitos tipo "Agregar empleado", "Editar empleado", "Eliminar empleado", "Agregar placas", etc. (uno por tipo de catálogo)
+- Eliminar = soft-delete (cambiar bool `activo` a `false`/apagado, nunca se borra el registro)
+- Alta de camión incluye definir `posicionesLlantas` manualmente
+- Esta administración es también el lugar para dar de alta un chofer/placa que un chofer haya tenido que escribir "a mano" en Android por no estar aún en el catálogo (ver opción "Otro" en Pantalla 1 de Android)
 
 ## Reglas de negocio críticas
 1. Alerta servicio: kmInicial primer destino − kilometrajeUltimoServicio >= 9000 -> aviso en escritorio
@@ -218,6 +225,34 @@ Inicialmente se pensó en mostrar solo "marcas" para RENTA. Pero el usuario acla
 ### UI Polish Pendiente (sin placeholders, bordes uniformes)
 - Placeholders: están en el código como removidos pero siguen viéndose (revisar compilación/caché)
 - Bordes redondeados: RoundedCornerShape(8.dp) agregado pero no se ve la diferencia con OutlinedButton
+
+## 📝 Decisiones de Diseño — App Supervisor (2026-08-23)
+
+### Cambio de plan: Java/Swing (escritorio) → Web (navegador)
+El plan original de este archivo era una app de escritorio en Java + Swing + Apache POI + Firebase Admin SDK. El usuario pidió cambiarlo a una **app web** ("accede desde Windows" = navegador en una PC Windows, no un ejecutable instalado).
+
+**Stack propuesto** (recomendado por Claude, aceptado por el usuario, pero la construcción del proyecto AÚN NO ha arrancado — se pausó para seguir ajustando la app Android):
+- **React + Vite**: frontend, sin backend propio
+- **Firebase Web SDK** (Firestore + Storage) directo desde el cliente — las reglas de Firestore ya están en modo prueba (abiertas), igual que hace la app Android, así que no hace falta montar un servidor con Admin SDK
+- **Firebase Hosting** para publicar: da una URL estable tipo `https://checklist-choferes.web.app`, deploy con un comando, capa gratuita de sobra para esta demo (10GB almacenamiento, 360MB/día transferencia)
+- **IDE recomendado**: VS Code (ya lo tiene instalado el usuario) en vez de Android Studio/IntelliJ, por ser el estándar para proyectos web
+- **"Imprimir"**: en vez de generar `.docx` con Apache POI, usar una vista HTML imprimible + "Imprimir → Guardar como PDF" del navegador — mucho más simple
+
+**Razón del cambio**: prioridad de velocidad de desarrollo (ver Contexto general). Evita Java Swing (UI anticuada, más lenta de construir) y evita montar un backend/servidor separado solo para usar el Admin SDK, cuando el cliente web puede hablar directo a Firestore igual que la app Android.
+
+### Nota de facturación: Firebase Storage requiere plan Blaze
+Al intentar habilitar Firebase Storage (2026-08-23) para las fotos de Android, la consola pidió activar el plan **Blaze** (pago por uso) — Storage ya no está disponible en el plan gratuito Spark para proyectos nuevos. El usuario activó Blaze (vinculó cuenta de facturación de Google Cloud). Esto **ya está resuelto y activo**, relevante aquí porque la app del supervisor usará el mismo proyecto de Firebase:
+- Blaze no cobra nada extra por sí solo; solo se paga si se excede la capa gratuita (Firestore: 1GB/50K lecturas-día/20K escrituras-día; Storage: 5GB/1GB descarga-día; Hosting: 10GB/360MB-día)
+- Para esta demo/prototipo el uso real esperado es $0
+- Recomendación pendiente de aplicar: comprimir fotos antes de subir (✅ ya implementado en Android, ver PROGRESS.md) y configurar una alerta de presupuesto en Firebase Console (Facturación → Presupuestos y alertas) como red de seguridad
+
+### Especificación detallada dada por el usuario (2026-08-23) para la app Supervisor
+Instrucciones textuales del usuario, para referencia al implementar:
+- Todo lo que sea una lista debe tener una tabla en la BD editable por el supervisor, facilitado con botones tipo "Agregar empleado" / "Editar empleado" / "Eliminar empleado" / "Agregar placas" (el supervisor no sabe de bases de datos)
+- Eliminaciones = soft-delete (bool activo/inactivo, nunca se borra)
+- Los datos que se muestran como listas de opciones al chofer (placas, etc.) deben tener opción "Otro" con texto libre, para no bloquear al chofer si algo no está registrado (✅ ya implementado en Android para Placas GDE/MED, Placa RENTA y Detalle Renta — Chofer se mantiene solo-catálogo por decisión explícita)
+- 2 tipos de usuario: Chofer (Android) y Supervisor (Windows/navegador)
+- Supervisor: filtros por fecha/placa/chofer/destino; agregar/eliminar(soft) catálogos; diferenciar rutas activas vs concluidas (bool); imprimir formato con respuestas; ver cantidad de combustible cargado, rendimiento (fórmula arriba, solo válido con tanque lleno ida y vuelta), y otras métricas útiles a criterio de Claude
 
 ## Instrucciones para Claude Code
 - Antes de generar código nuevo, revisa PROGRESS.md para saber el estado actual.
