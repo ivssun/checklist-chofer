@@ -40,7 +40,7 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   camionId: string|null,      // null si tipo = RENTA u Otro
   tipoUnidad: "GDE" | "MED" | "RENTA" | "Otro",
   placa: string,              // placa del vehículo (ej. "ABC123", "RENTA001")
-  detalleRenta: string,       // marca/modelo, solo aplica si tipoUnidad = RENTA (string vacío si no aplica)
+  detalleRenta: string,       // marca/modelo. Aplica si tipoUnidad = RENTA (dropdown de marcas) o tipoUnidad = Otro (texto libre "Marca"); string vacío si no aplica (GDE/MED)
   economico: string,          // No. de Unidad / Económico (ingreso manual, obligatorio)
   fecha: timestamp,           // automática al crear
   horaLlegadaMatriz: timestamp|null,  // se asigna al crear
@@ -100,27 +100,37 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
 
 ## FLUJO APP ANDROID (Chofer)
 
+### Reanudación de sesión (2026-08-25)
+Si se cierra la app con un viaje sin concluir (después de "Iniciar Viaje" pero antes de terminar el checklist, o a mitad del itinerario), la sesión se persiste localmente (SharedPreferences: `viajeId` + pantalla). Al reabrir, **no se retoma directo** — se muestra una pantalla intermedia "Viaje en curso" con dos opciones: "Continuar con el viaje en curso" o "Cancelar e iniciar un nuevo viaje". Se decidió no forzar la continuación porque el chofer puede haber tenido el viaje cancelado o le cambiaron de unidad mientras la app estaba cerrada. Si elige "nuevo viaje", el registro anterior queda huérfano en Firestore (`concluido: false`, sin checklist) — no se borra ni se marca de ninguna forma especial por ahora.
+
+**Fallback si el viaje ya no existe**: si al retomar (Checklist o Control de Viaje) el `viajeId` guardado localmente ya no tiene documento en Firestore (por ejemplo, se borró manualmente desde la consola), la app detecta que `viaje == null` tras terminar de cargar y regresa sola a Pantalla 1 (limpia la sesión guardada) en vez de dejar una pantalla en blanco sin salida.
+
+**Limpieza de datos de prueba (2026-08-25)**: se revisó la colección `viajes` en la consola de Firebase antes de arrancar la app Supervisor — tenía 55 documentos, de los cuales solo 1 estaba `concluido: true` y 1 era el huérfano válido conocido; los 53 restantes eran basura de pruebas (sin `concluido` bien definido). Se borró toda la colección `viajes` (recursivo, incluidas subcolecciones `destinos`/`cargasCombustible`) para no arrastrar datos sucios al dashboard del Supervisor. Los catálogos (`choferes`, `camiones`, `destinosCatalogo`) no se tocaron. Costo: insignificante (borrar cuenta como escritura; la capa gratuita de Blaze da 20,000 escrituras/día).
+
 ### Pantalla 1: Formulario inicial (ViajeScreen) — IMPLEMENTADO ✅
+
+**UI**: los placeholders de campos vacíos/obligatorios se muestran en rojo (`MaterialTheme.colorScheme.error`) para que resalte visualmente qué falta llenar — pensado para choferes no necesariamente familiarizados con apps (decisión del usuario, 2026-08-25).
+
+**Navegación automática entre campos** (2026-08-25): para minimizar toques, al completar un campo se abre/enfoca automáticamente el siguiente — Nombre → Tipo de Unidad → (según tipo: Detalle Renta → Placas para RENTA / Marca → Placas para OTRO / Placas para GDE-MED) → Económico. Implementado con "señales" (`Int` incremental) que fuerzan la apertura de un `DropdownMenu` vía `LaunchedEffect`, y `FocusRequester` + `KeyboardActions(onNext = ...)` para saltar el teclado entre campos de texto manual (incluida la opción "Otro" de cada dropdown). El campo de Chofer no depende de nada previo por ser el primero, y Económico es el último (no encadena a nada más).
 
 **Campos mostrados**:
 1. **Fecha**: automática, no editable (DD/MM/YYYY)
-2. **Nombre**: dropdown de choferes activos (autocomplete)
-3. **Tipo de Unidad**: dropdown (GDE, MED, RENTA, Otro)
-4. **Placas** (dinámico según tipo):
-   - **GDE/MED**: dropdown de camiones filtrados por tipo (muestra placa) + opción "Otro" (texto manual, por si el camión no está registrado en el catálogo)
-   - **RENTA**: dropdown de placas predefinidas (RENTA001 a RENTA006) + opción "Otro" (texto manual)
-   - **Otro** (tipo de unidad): campo de texto manual directo (ingresa placa)
-5. **Detalle Renta** (solo si tipo = RENTA): dropdown de marcas (Ford, Toyota, Caja, Redila, Batea, Volteo) + opción "Otro" (texto manual)
-6. **No. de Unidad / Económico**: campo de texto (ingreso manual, obligatorio para todos)
+2. **Nombre**: dropdown de choferes activos, **con filtro de texto** (escribe para acotar la lista; catálogo cerrado, sin opción "Otro")
+3. **Tipo de Unidad**: dropdown. Opciones mostradas al chofer: "ISUZU GDE", "ISUZU MED", "ISUZU RENTA", "OTRO" (por decisión del usuario, 2026-08-24 — son solo etiquetas de despliegue; internamente se sigue guardando `tipoUnidad` como "GDE"/"MED"/"RENTA"/"Otro" para no romper el filtrado de camiones por `Camion.tipo`)
+4. Campos dinámicos según tipo, en este orden:
+   - **ISUZU GDE/MED**: "Placas" — dropdown de camiones filtrados por tipo (muestra placa) + opción "Otro" (texto manual, por si el camión no está registrado en el catálogo)
+   - **ISUZU RENTA**: primero "Detalle Renta" (dropdown de marcas: Ford, Toyota, Caja, Redila, Batea, Volteo, placeholder "Seleccionar dato", + opción "Otro" con texto libre), y **debajo** "Placas" (dropdown de placas predefinidas RENTA001-RENTA006 + opción "Otro" con texto libre) — se pide primero la marca porque tiene más sentido elegir el vehículo y luego su placa
+   - **OTRO**: dos campos manuales, ambos de texto libre — "Marca" (placeholder "Ingresar marca") seguido de "Placas" (placeholder "Ingresar placa"). Antes solo pedía la placa y perdía el dato de marca; ahora se guarda igual que las demás categorías (marca + placa)
+5. **No. de Unidad / Económico**: campo de texto (ingreso manual, obligatorio para todos)
 
-**Nota sobre "Otro" en dropdowns de catálogo**: por decisión del usuario (2026-08-23), los dropdowns de Placas (GDE/MED y RENTA) y Detalle Renta incluyen una opción "Otro" que revela un campo de texto libre, para no bloquear al chofer si el dato no está registrado en el catálogo. El dropdown de **Chofer NO tiene esta opción** — el roster de choferes se mantiene siempre controlado por catálogo (se administra desde la app de supervisor).
+**Nota sobre "Otro" en dropdowns de catálogo**: por decisión del usuario (2026-08-23), los dropdowns de Placas (GDE/MED y RENTA) y Detalle Renta incluyen una opción "Otro" que revela un campo de texto libre, para no bloquear al chofer si el dato no está registrado en el catálogo. El dropdown de **Chofer NO tiene esta opción** — el roster de choferes se mantiene siempre controlado por catálogo (se administra desde la app de supervisor), pero sí tiene filtro de texto para facilitar buscar entre muchos nombres (agregado 2026-08-24 por feedback de QA).
 
 **Validaciones**:
 - Chofer requerido
 - Económico requerido (nunca vacío)
 - Tipo GDE/MED: requiere camión seleccionado
 - Tipo RENTA: requiere placa RENTA + detalle marca
-- Tipo Otro: requiere placa manual
+- Tipo Otro: requiere marca manual + placa manual (ambos campos)
 
 **Guardado en Firestore**:
 - `choferId`: ID del chofer seleccionado
@@ -193,7 +203,7 @@ Hay 2 tipos de usuario en el sistema: **Chofer** (Android) y **Supervisor** (est
 ## Reglas de negocio críticas
 1. Alerta servicio: kmInicial primer destino − kilometrajeUltimoServicio >= 9000 -> aviso en escritorio
 2. Rendimiento combustible: ver fórmula arriba, condicionado a tanque lleno
-3. Presión de llantas: filas = tamaño de posicionesLlantas del camión, o 6 editables si "Otro"
+3. Presión de llantas: filas = tamaño de posicionesLlantas del camión (fijo, no editable) para GDE/MED; para RENTA y OTRO arranca en 6 filas genéricas ("Delantera Izquierda", etc.) pero el chofer puede agregar ("+ Agregar llanta", etiqueta autogenerada "Llanta N") o quitar filas libremente (mínimo 1), ya que no hay un camión de catálogo que fije la cantidad real (2026-08-25)
 4. Itinerario se congela tras guardar checklist principal
 5. Fotos: SOLO cámara en vivo, nunca galería (Intent de cámara directo)
 6. Firmas: NO se capturan digitalmente, se firman a mano sobre documento impreso

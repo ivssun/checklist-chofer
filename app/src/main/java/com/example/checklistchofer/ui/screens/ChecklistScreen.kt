@@ -47,7 +47,8 @@ import com.example.checklistchofer.data.PresionLlanta
 fun ChecklistScreen(
     viajeId: String,
     viewModel: ChecklistViewModel = remember(viajeId) { ChecklistViewModel(viajeId) },
-    onChecklistGuardado: () -> Unit = {}
+    onChecklistGuardado: () -> Unit = {},
+    onViajeNoEncontrado: () -> Unit = {}
 ) {
     val viaje by viewModel.viaje.collectAsState()
     val camion by viewModel.camion.collectAsState()
@@ -70,6 +71,15 @@ fun ChecklistScreen(
     LaunchedEffect(checklistGuardado) {
         if (checklistGuardado) {
             onChecklistGuardado()
+        }
+    }
+
+    // El viaje que se intentaba retomar ya no existe en Firestore (p. ej. se
+    // borró desde la consola) — regresar a Pantalla 1 en vez de dejar la
+    // pantalla en blanco sin salida.
+    LaunchedEffect(isLoading, viaje) {
+        if (!isLoading && viaje == null) {
+            onViajeNoEncontrado()
         }
     }
 
@@ -458,6 +468,10 @@ fun SeccionPresionLlantas(
     presiones: List<PresionLlanta>,
     onUpdate: (List<PresionLlanta>) -> Unit
 ) {
+    // Sin camión de catálogo (RENTA u OTRO) no hay un número fijo de llantas
+    // real conocido, así que aquí sí se permite agregar/quitar filas.
+    val esEditable = camion == null
+
     val llantasActuales = remember {
         val inicial = if (presiones.isNotEmpty()) {
             presiones
@@ -474,10 +488,17 @@ fun SeccionPresionLlantas(
         }
         androidx.compose.runtime.mutableStateListOf(*inicial.toTypedArray())
     }
+    // Contador para nombrar llantas agregadas manualmente sin repetir etiqueta,
+    // aunque se hayan quitado filas de en medio.
+    var contadorLlantas by remember { mutableStateOf(llantasActuales.size) }
 
     Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         llantasActuales.forEachIndexed { index, llanta ->
-            var presion by remember { mutableStateOf("") }
+            // Se usa la etiqueta como key para que el texto no se desordene
+            // al quitar una fila de en medio (los índices se recorren).
+            var presion by remember(llanta.etiqueta) {
+                mutableStateOf(if (llanta.presion != 0f) llanta.presion.toString() else "")
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -495,7 +516,7 @@ fun SeccionPresionLlantas(
                         )
                         onUpdate(llantasActuales.toList())
                     },
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.weight(1f),
                     singleLine = true,
                     placeholder = { Text("PSI") },
                     keyboardOptions = KeyboardOptions(
@@ -503,6 +524,30 @@ fun SeccionPresionLlantas(
                         imeAction = ImeAction.Done
                     )
                 )
+                if (esEditable) {
+                    Button(
+                        onClick = {
+                            llantasActuales.removeAt(index)
+                            onUpdate(llantasActuales.toList())
+                        },
+                        enabled = llantasActuales.size > 1
+                    ) {
+                        Text("X")
+                    }
+                }
+            }
+        }
+
+        if (esEditable) {
+            OutlinedButton(
+                onClick = {
+                    contadorLlantas += 1
+                    llantasActuales.add(PresionLlanta("Llanta $contadorLlantas", 0f))
+                    onUpdate(llantasActuales.toList())
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("+ Agregar llanta")
             }
         }
     }

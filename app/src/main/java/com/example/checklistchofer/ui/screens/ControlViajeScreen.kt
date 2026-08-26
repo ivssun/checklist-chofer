@@ -52,7 +52,8 @@ private fun formatFecha(timestamp: Timestamp?): String {
 fun ControlViajeScreen(
     viajeId: String,
     viewModel: ControlViajeViewModel = remember(viajeId) { ControlViajeViewModel(viajeId) },
-    onFinalizarViaje: () -> Unit = {}
+    onFinalizarViaje: () -> Unit = {},
+    onViajeNoEncontrado: () -> Unit = {}
 ) {
     val viaje by viewModel.viaje.collectAsState()
     val destinos by viewModel.destinos.collectAsState()
@@ -66,6 +67,15 @@ fun ControlViajeScreen(
         error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.limpiarError()
+        }
+    }
+
+    // El viaje que se intentaba retomar ya no existe en Firestore (p. ej. se
+    // borró desde la consola) — regresar a Pantalla 1 en vez de dejar la
+    // pantalla en blanco sin salida.
+    LaunchedEffect(isLoading, viaje) {
+        if (!isLoading && viaje == null) {
+            onViajeNoEncontrado()
         }
     }
 

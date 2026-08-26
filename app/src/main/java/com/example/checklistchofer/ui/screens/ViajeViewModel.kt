@@ -187,6 +187,11 @@ class ViajeViewModel(
 
         when (tipo) {
             "Otro" -> {
+                val marcaVal = _detalleRentaManual.value.trim()
+                if (marcaVal.isEmpty()) {
+                    _error.value = "Ingresa la marca del vehículo"
+                    return
+                }
                 val placaManualVal = _placaManual.value.trim()
                 if (placaManualVal.isEmpty()) {
                     _error.value = "Ingresa la placa del vehículo"
@@ -194,6 +199,7 @@ class ViajeViewModel(
                 }
                 camionId = null
                 placa = placaManualVal
+                detalleRentaVal = marcaVal
             }
             "RENTA" -> {
                 if (_usarPlacaOtro.value) {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -17,7 +18,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -35,8 +38,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.example.checklistchofer.data.Camion
 import com.example.checklistchofer.data.Chofer
 import java.text.SimpleDateFormat
@@ -69,7 +77,44 @@ fun ViajeScreen(
     val fechaFormato = SimpleDateFormat("dd/MM/yyyy", Locale("es", "MX"))
     val fechaActual = fechaFormato.format(Date())
     val tiposUnidad = listOf("GDE", "MED", "RENTA", "Otro")
+    val tipoUnidadLabels = mapOf(
+        "GDE" to "ISUZU GDE",
+        "MED" to "ISUZU MED",
+        "RENTA" to "ISUZU RENTA",
+        "Otro" to "OTRO"
+    )
     val marcasRenta = viewModel.getMarcasRenta()
+
+    // Navegación automática entre campos: cada señal se incrementa para
+    // forzar que el siguiente dropdown se abra solo, y cada FocusRequester
+    // se usa para saltar el teclado al siguiente campo de texto.
+    var abrirTipoSignal by remember { mutableStateOf(0) }
+    var abrirDetalleRentaSignal by remember { mutableStateOf(0) }
+    var abrirPlacasRentaSignal by remember { mutableStateOf(0) }
+    var abrirPlacaCamionSignal by remember { mutableStateOf(0) }
+    val marcaOtroFocus = remember { FocusRequester() }
+    val placaOtroFocus = remember { FocusRequester() }
+    val economicoFocus = remember { FocusRequester() }
+
+    LaunchedEffect(choferSeleccionado) {
+        if (choferSeleccionado != null) abrirTipoSignal++
+    }
+    LaunchedEffect(tipoUnidad) {
+        when (tipoUnidad) {
+            "RENTA" -> abrirDetalleRentaSignal++
+            "GDE", "MED" -> abrirPlacaCamionSignal++
+            "Otro" -> marcaOtroFocus.requestFocus()
+        }
+    }
+    LaunchedEffect(detalleRenta) {
+        if (detalleRenta.isNotEmpty()) abrirPlacasRentaSignal++
+    }
+    LaunchedEffect(placaRentaSeleccionada) {
+        if (placaRentaSeleccionada.isNotEmpty()) economicoFocus.requestFocus()
+    }
+    LaunchedEffect(camionSeleccionado) {
+        if (camionSeleccionado != null) economicoFocus.requestFocus()
+    }
 
     // Mostrar error en snackbar
     LaunchedEffect(error) {
@@ -123,11 +168,10 @@ fun ViajeScreen(
 
                 // Sección Nombre
                 Text("Nombre del colaborador", modifier = Modifier.padding(top = 8.dp))
-                DropdownSelector(
+                DropdownSelectorFiltro(
                     label = "nombre",
                     selectedItem = choferSeleccionado,
                     items = choferes,
-                    itemLabel = { it.nombre },
                     onItemSelected = { viewModel.seleccionarChofer(it) }
                 )
 
@@ -137,16 +181,30 @@ fun ViajeScreen(
                     label = "tipo de unidad",
                     selectedItem = tipoUnidad.ifEmpty { null },
                     items = tiposUnidad,
-                    itemLabel = { it },
-                    onItemSelected = { viewModel.cambiarTipoUnidad(it) }
+                    itemLabel = { tipoUnidadLabels[it] ?: it },
+                    onItemSelected = { viewModel.cambiarTipoUnidad(it) },
+                    autoAbrirSignal = abrirTipoSignal
                 )
-
-                // Sección Placas
-                Text("Placas", modifier = Modifier.padding(top = 16.dp))
 
                 when (tipoUnidad) {
                     "RENTA" -> {
-                        // Selector de placa RENTA (con opción "Otro")
+                        // Primero Detalle Renta (marca), luego Placas
+                        Text("Detalle Renta", modifier = Modifier.padding(top = 16.dp))
+                        DropdownSelectorConOtro(
+                            label = "dato",
+                            selectedItem = detalleRenta.ifEmpty { null },
+                            items = marcasRenta,
+                            itemLabel = { it },
+                            onItemSelected = { viewModel.seleccionarDetalleRenta(it) },
+                            usandoOtro = usarDetalleRentaOtro,
+                            valorManual = detalleRentaManual,
+                            onSeleccionarOtro = { viewModel.seleccionarDetalleRentaOtro() },
+                            onValorManualChange = { viewModel.actualizarDetalleRentaManual(it) },
+                            autoAbrirSignal = abrirDetalleRentaSignal,
+                            onListo = { abrirPlacasRentaSignal++ }
+                        )
+
+                        Text("Placas", modifier = Modifier.padding(top = 16.dp))
                         DropdownSelectorConOtro(
                             label = "placas",
                             selectedItem = placaRentaSeleccionada.ifEmpty { null },
@@ -156,25 +214,46 @@ fun ViajeScreen(
                             usandoOtro = usarPlacaOtro,
                             valorManual = placaManual,
                             onSeleccionarOtro = { viewModel.seleccionarPlacaOtro() },
-                            onValorManualChange = { viewModel.actualizarPlacaManual(it) }
+                            onValorManualChange = { viewModel.actualizarPlacaManual(it) },
+                            autoAbrirSignal = abrirPlacasRentaSignal,
+                            onListo = { economicoFocus.requestFocus() }
                         )
                     }
                     "Otro" -> {
-                        // Campo de placa manual
+                        // Marca y Placas, ambos manuales
+                        Text("Marca", modifier = Modifier.padding(top = 16.dp))
+                        OutlinedTextField(
+                            value = detalleRentaManual,
+                            onValueChange = { viewModel.actualizarDetalleRentaManual(it) },
+                            placeholder = { Text("Ingresar marca", color = MaterialTheme.colorScheme.error) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { placaOtroFocus.requestFocus() }),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(marcaOtroFocus)
+                                .height(56.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+
+                        Text("Placas", modifier = Modifier.padding(top = 16.dp))
                         OutlinedTextField(
                             value = placaManual,
                             onValueChange = { viewModel.actualizarPlacaManual(it) },
-                            placeholder = { Text("Ingresar dato") },
+                            placeholder = { Text("Ingresar placa", color = MaterialTheme.colorScheme.error) },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { economicoFocus.requestFocus() }),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(placaOtroFocus)
                                 .height(56.dp),
                             shape = RoundedCornerShape(8.dp)
                         )
                     }
                     else -> {
                         // Selector de Camión para GDE/MED (con opción "Otro")
+                        Text("Placas", modifier = Modifier.padding(top = 16.dp))
                         DropdownSelectorConOtro(
                             label = "placa",
                             selectedItem = camionSeleccionado,
@@ -184,25 +263,11 @@ fun ViajeScreen(
                             usandoOtro = usarPlacaOtro,
                             valorManual = placaManual,
                             onSeleccionarOtro = { viewModel.seleccionarPlacaOtro() },
-                            onValorManualChange = { viewModel.actualizarPlacaManual(it) }
+                            onValorManualChange = { viewModel.actualizarPlacaManual(it) },
+                            autoAbrirSignal = abrirPlacaCamionSignal,
+                            onListo = { economicoFocus.requestFocus() }
                         )
                     }
-                }
-
-                // Sección Detalle Renta (solo si es RENTA)
-                if (tipoUnidad == "RENTA") {
-                    Text("Detalle Renta", modifier = Modifier.padding(top = 16.dp))
-                    DropdownSelectorConOtro(
-                        label = "detalle",
-                        selectedItem = detalleRenta.ifEmpty { null },
-                        items = marcasRenta,
-                        itemLabel = { it },
-                        onItemSelected = { viewModel.seleccionarDetalleRenta(it) },
-                        usandoOtro = usarDetalleRentaOtro,
-                        valorManual = detalleRentaManual,
-                        onSeleccionarOtro = { viewModel.seleccionarDetalleRentaOtro() },
-                        onValorManualChange = { viewModel.actualizarDetalleRentaManual(it) }
-                    )
                 }
 
                 // Sección No. de Unidad / Económico (ingreso manual para todos)
@@ -210,11 +275,12 @@ fun ViajeScreen(
                 OutlinedTextField(
                     value = economicoManual,
                     onValueChange = { viewModel.actualizarEconomicoManual(it) },
-                    placeholder = { Text("Ingresar dato") },
+                    placeholder = { Text("Ingresar dato", color = MaterialTheme.colorScheme.error) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(economicoFocus)
                         .height(56.dp),
                     shape = RoundedCornerShape(8.dp)
                 )
@@ -231,7 +297,7 @@ fun ViajeScreen(
                         "RENTA" ->
                             (if (usarPlacaOtro) placaManual.isNotEmpty() else placaRentaSeleccionada.isNotEmpty()) &&
                             (if (usarDetalleRentaOtro) detalleRentaManual.isNotEmpty() else detalleRenta.isNotEmpty())
-                        "Otro" -> placaManual.isNotEmpty()
+                        "Otro" -> placaManual.isNotEmpty() && detalleRentaManual.isNotEmpty()
                         else -> if (usarPlacaOtro) placaManual.isNotEmpty() else camionSeleccionado != null
                     },
                     modifier = Modifier
@@ -252,20 +318,31 @@ fun <T> DropdownSelector(
     selectedItem: T?,
     items: List<T>,
     itemLabel: (T) -> String,
-    onItemSelected: (T) -> Unit
+    onItemSelected: (T) -> Unit,
+    autoAbrirSignal: Int = 0
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(autoAbrirSignal) {
+        if (autoAbrirSignal > 0) {
+            focusRequester.requestFocus()
+            expanded = true
+        }
+    }
 
     Column {
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier
                 .fillMaxWidth()
+                .focusRequester(focusRequester)
                 .height(56.dp),
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(
                 text = selectedItem?.let { itemLabel(it) } ?: "Seleccionar $label",
+                color = if (selectedItem == null) MaterialTheme.colorScheme.error else Color.Unspecified,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
@@ -291,6 +368,62 @@ fun <T> DropdownSelector(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun DropdownSelectorFiltro(
+    label: String,
+    selectedItem: Chofer?,
+    items: List<Chofer>,
+    onItemSelected: (Chofer) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var texto by remember(selectedItem) { mutableStateOf(selectedItem?.nombre ?: "") }
+    val itemsFiltrados = remember(texto, items) {
+        if (texto.isBlank() || texto == selectedItem?.nombre) items
+        else items.filter { it.nombre.contains(texto, ignoreCase = true) }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = true }
+    ) {
+        OutlinedTextField(
+            value = texto,
+            onValueChange = {
+                texto = it
+                expanded = true
+            },
+            placeholder = { Text("Escribir o seleccionar $label", color = MaterialTheme.colorScheme.error) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = false)
+                .onFocusChanged { focusState -> if (focusState.isFocused) expanded = true }
+                .height(56.dp),
+            shape = RoundedCornerShape(8.dp)
+        )
+
+        DropdownMenu(
+            expanded = expanded && itemsFiltrados.isNotEmpty(),
+            onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            itemsFiltrados.forEach { item ->
+                DropdownMenuItem(
+                    text = { Text(item.nombre) },
+                    onClick = {
+                        texto = item.nombre
+                        onItemSelected(item)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun <T> DropdownSelectorConOtro(
     label: String,
     selectedItem: T?,
@@ -300,15 +433,27 @@ fun <T> DropdownSelectorConOtro(
     usandoOtro: Boolean,
     valorManual: String,
     onSeleccionarOtro: () -> Unit,
-    onValorManualChange: (String) -> Unit
+    onValorManualChange: (String) -> Unit,
+    autoAbrirSignal: Int = 0,
+    onListo: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val manualFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(autoAbrirSignal) {
+        if (autoAbrirSignal > 0) {
+            focusRequester.requestFocus()
+            expanded = true
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier
                 .fillMaxWidth()
+                .focusRequester(focusRequester)
                 .height(56.dp),
             shape = RoundedCornerShape(8.dp)
         ) {
@@ -318,6 +463,7 @@ fun <T> DropdownSelectorConOtro(
                     selectedItem != null -> itemLabel(selectedItem)
                     else -> "Seleccionar $label"
                 },
+                color = if (!usandoOtro && selectedItem == null) MaterialTheme.colorScheme.error else Color.Unspecified,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
@@ -346,15 +492,21 @@ fun <T> DropdownSelectorConOtro(
             )
         }
 
+        LaunchedEffect(usandoOtro) {
+            if (usandoOtro) manualFocusRequester.requestFocus()
+        }
+
         if (usandoOtro) {
             OutlinedTextField(
                 value = valorManual,
                 onValueChange = onValorManualChange,
-                placeholder = { Text("Ingresar dato") },
+                placeholder = { Text("Ingresar dato", color = MaterialTheme.colorScheme.error) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { onListo() }),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(manualFocusRequester)
                     .height(56.dp),
                 shape = RoundedCornerShape(8.dp)
             )
@@ -369,10 +521,14 @@ fun CamionInfoCard(camion: Camion) {
             .fillMaxWidth()
             .padding(12.dp)
     ) {
-        Text("Información del Camión")
+        Text(
+            text = "Información del Camión",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
         Text("Placa: ${camion.placa}")
         Text("Tipo: ${camion.tipo}")
         Text("KM último servicio: ${camion.kilometrajeUltimoServicio}")
-        Text("Posiciones de llantas: ${camion.posicionesLlantas.size}")
     }
 }

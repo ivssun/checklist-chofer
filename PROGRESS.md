@@ -1,8 +1,24 @@
 # ChecklistChofer - Progress & Status
 
-**Última actualización**: 2026-08-23 (noche)  
+**Última actualización**: 2026-08-25  
 **Demo objetivo**: Lunes 2026-08-25  
 **Estado general**: Android completo, con colores de marca y distribuido (repo GitHub privado + APK vía Release v0.2). App Supervisor: plan cambiado de Java/Swing a **app web** — debate y decisión documentados en CLAUDE.md, construcción del proyecto AÚN NO ha arrancado.
+
+### Sesión 2026-08-25: Feedback de QA (Jose Canela)
+- [x] Dropdown de Nombre: ahora filtra por texto al escribir (antes solo lista sin buscar) — confirmado funcionando por el usuario
+- [x] Tipo de Unidad: opciones renombradas a "ISUZU GDE"/"ISUZU MED"/"ISUZU RENTA"/"OTRO" (solo etiqueta visual, el valor guardado en Firestore no cambió) — confirmado funcionando
+- [x] ISUZU RENTA: reordenado — ahora pide primero "Detalle Renta" (placeholder "Seleccionar dato") y luego "Placas"
+- [x] OTRO: ahora pide "Marca" (texto libre) y "Placas" (texto libre), antes solo pedía placa y perdía el dato de marca — confirmado funcionando
+- [x] Tarjeta "Información del Camión": título resaltado (color de marca + tipografía); se quitó la línea "Posiciones de llantas" (dato interno sin sentido para el chofer, solo se usa internamente en la tabla de presión de llantas) — confirmado funcionando
+- [x] Fix de bug: la app se reiniciaba en Pantalla 1 si se cerraba después de "Iniciar Viaje", aunque el viaje ya existía en Firestore (huérfano, sin checklist). Ahora se persiste sesión (viajeId + pantalla) en SharedPreferences — confirmado funcionando por el usuario
+- [x] Pantalla "Viaje en curso" al reabrir la app: en vez de retomar directo, pregunta "Continuar con el viaje en curso" / "Cancelar e iniciar un nuevo viaje" (por si cancelaron el viaje o cambiaron de unidad mientras la app estaba cerrada) — pendiente de confirmar por el usuario
+- [x] Placeholders de Pantalla 1 en rojo (color error) para que resalte visualmente qué campos faltan por llenar — pendiente de confirmar por el usuario
+- [x] Revisado en consola de Firebase: colección `viajes` tenía 55 documentos, solo 1 concluido y 1 huérfano válido — el resto basura de pruebas. Se borró toda la colección `viajes` (con subcolecciones `destinos`/`cargasCombustible`) para arrancar limpio antes de la app Supervisor. Catálogos (`choferes`, `camiones`, `destinosCatalogo`) no se tocaron.
+- [x] Fix de robustez: si el viaje que se intenta retomar (Checklist o Control de Viaje) ya no existe en Firestore (p. ej. se borró desde la consola), la app regresa sola a Pantalla 1 en vez de quedar en una pantalla en blanco sin salida (`onViajeNoEncontrado` en ambas pantallas)
+- [x] App renombrada de "ChecklistChofer" a "Checklist" en el ícono (no cabía completo)
+- [x] Nombre del colaborador: corregido para que un solo toque abra teclado + lista filtrable juntos (causa raíz: el menú desplegable era focusable y le robaba el foco de ventana al campo de texto, cerrando el teclado) — confirmado funcionando
+- [x] Presión de llantas: para RENTA y OTRO ahora se pueden agregar/quitar filas de llanta ("+ Agregar llanta", mínimo 1) ya que esos viajes no tienen un camión de catálogo que fije la cantidad real de llantas — confirmado funcionando
+- [x] Pantalla 1: navegación automática entre campos — al seleccionar Nombre se abre solo Tipo de Unidad; al elegir tipo se abre/enfoca el siguiente campo según la rama (Detalle Renta→Placas para RENTA, Marca→Placas para OTRO, Placas para GDE/MED); al terminar Placas salta el foco a Económico — confirmado funcionando
 
 ### Sesión tarde/noche (2026-08-23): "Otro" en dropdowns, compresión de fotos, tema de color
 - [x] Placas GDE/MED: dropdown + opción "Otro" (texto manual)
