@@ -2,7 +2,25 @@
 
 **Última actualización**: 2026-09-01  
 **Demo objetivo**: Lunes 2026-08-25 (ya pasada) — ahora preparando demo con **cliente real**  
-**Estado general**: Android completo, incluyendo el feedback del cliente real (autoguardado extendido + reporte de incidentes + ajustes UX), confirmado en dispositivo. App Supervisor: plan cambiado de Java/Swing a **app web** — debate y decisión documentados en CLAUDE.md, construcción del proyecto AÚN NO ha arrancado — es lo único que falta para la demo.
+**Estado general**: Android completo, incluyendo el feedback del cliente real (autoguardado extendido + reporte de incidentes + ajustes UX), confirmado en dispositivo. App Supervisor (web): **arrancada y desplegada** — Dashboard v1 (lista de viajes + filtros + alerta de incidentes pendientes) confirmado funcionando por el usuario, en vivo en https://checklist-choferes.web.app. Sigue en progreso — ver sección "App Supervisor (Web)" más abajo para lo que falta.
+
+### Sesión 2026-09-01 (continuación): App Supervisor arranca — Dashboard v1
+- [x] Proyecto Vite + React (JavaScript, sin TypeScript) creado en `supervisor-web/` — carpeta hermana de `app/`, dentro del mismo repo (monorepo simple, no repo aparte)
+- [x] IDE: VS Code (no Android Studio) — abrir `ChecklistChofer/` como carpeta raíz en VS Code, no solo `supervisor-web/`, para que sea visible este mismo CLAUDE.md/PROGRESS.md si se abre una sesión de Claude Code ahí
+- [x] Dependencias instaladas: `firebase` (Web SDK), `@mantine/core` + `@mantine/hooks` (librería de componentes, decisión ya tomada — no shadcn/Tailwind) + `postcss-preset-mantine`
+- [x] Web App registrada en la consola de Firebase (proyecto `checklist-choferes`) — config guardada en `supervisor-web/src/firebase.js` (Firestore + Storage inicializados; la apiKey de Firebase Web no es secreta, es seguro tenerla en el código de cliente/repo)
+- [x] Dashboard v1 (`supervisor-web/src/pages/Dashboard.jsx`), confirmado funcionando por el usuario en `http://localhost:5173`:
+  - [x] Lista de viajes reales desde Firestore (fecha, chofer, tipo, placa, económico, destinos, estado)
+  - [x] Filtros: chofer, placa, destino (dropdowns con búsqueda), rango de fecha (desde/hasta)
+  - [x] Badge Activo/Concluido por viaje
+  - [x] Alerta roja arriba con conteo y detalle de `incidentes` con `estado: "Pendiente"` (colección nueva, alimentada desde Android)
+- [x] Cambios de `supervisor-web/` subidos a GitHub
+- [x] **Deploy de prueba a Firebase Hosting — CONFIRMADO EN VIVO**: https://checklist-choferes.web.app (público, gratis dentro de la capa gratuita — ver nota de costos abajo)
+  - `firebase-tools` instalado global en la laptop, sesión logueada con `olimpiamoctezuma@gmail.com` — deploys futuros no piden login de nuevo
+  - Config: `supervisor-web/firebase.json` (public: `dist`, rewrite SPA a `index.html`) + `supervisor-web/.firebaserc` (proyecto `checklist-choferes`)
+  - **Para volver a desplegar cambios**: dentro de `supervisor-web/`, `npm run build` seguido de `firebase deploy --only hosting`
+  - Costo real: $0 — Hosting no es un servidor "prendido" que cobre por tiempo activo, solo cobra por almacenamiento/transferencia si se excede la capa gratuita (10GB/360MB por día), muy lejos del uso de esta demo
+- **Próximo paso cuando se retome**: botón "Marcar como resuelto" en los incidentes, página de detalle de viaje (con métricas de rendimiento/alerta de servicio, que requieren leer subcolecciones `destinos`/`cargasCombustible`), CRUD de catálogos, vista imprimible — y volver a desplegar cuando haya avances
 
 ### Sesión 2026-09-01: Feedback del cliente real (pre-demo)
 - [x] Android — Autoguardado `ViajeScreen`: borrador local (SharedPreferences) de los campos antes de crear el doc del viaje, restaurado al reabrir — confirmado funcionando por el usuario
@@ -10,7 +28,7 @@
 - [x] Android — Botón "🚨 Reportar problema" en `ControlViajeScreen` (con viaje activo): descripción + foto obligatoria → colección `incidentes` (`estado: "Pendiente"`) — confirmado funcionando
 - [x] Android — Fix UX: texto del botón de foto decía "(opcional)" incluso cuando la foto es obligatoria (Reportar problema) — ahora `BotonFotoCamara` acepta `obligatoria: Boolean` y ajusta el texto
 - [x] Android — Botón "Siguiente" del teclado encadenado en los diálogos "Ya llegué a [destino]" (Km final → Canastillas entregadas → Canastillas regresadas) y "Agregar carga de combustible" (Ubicación → Km → Costo/L → Litros), antes todos mostraban "Listo" — confirmado funcionando
-- [ ] Supervisor (web) — Sección "Problemas pendientes" en el Dashboard: lista de incidentes, botón "Marcar como resuelto"
+- [x] Supervisor (web) — Sección "Problemas pendientes" en el Dashboard: alerta con lista de incidentes — confirmado funcionando (falta el botón "Marcar como resuelto", ver sesión de abajo)
 - Ver detalle completo de las features en CLAUDE.md → "Autoguardado de progreso (2026-09-01)", "Reporte de incidentes" (Pantalla 2), "Colección incidentes", "Problemas pendientes" (Supervisor)
 - Cambio de prioridad: para la app Supervisor, el cliente pidió buena presentación visual (antes se priorizaba solo velocidad/funcionalidad) — usar librería de componentes gratuita (Mantine o shadcn/ui + Tailwind)
 - **Android: las 3 features del feedback del cliente están completas y confirmadas en dispositivo. No queda pendiente nada más de Android para esta demo — el siguiente bloque de trabajo es la app Supervisor (web), que sigue sin arrancar.**
@@ -56,7 +74,7 @@
 |-----------|--------|-----------|
 | **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos → tema de color) | 100% |
 | **Firebase Backend** | ✅ Listo (Firestore + Storage con plan Blaze) | 100% |
-| **App Supervisor (Web)** | ❌ No iniciada — stack decidido (React+Vite+Firebase Hosting), pendiente arrancar | 0% |
+| **App Supervisor (Web)** | 🔶 En progreso — Dashboard v1 (lista, filtros, alerta de incidentes) desplegado en https://checklist-choferes.web.app | ~35% |
 | **Fotos/Storage** | ✅ Completo (con compresión) | 100% |
 | **Botones especiales** | ✅ Listo | 100% |
 | **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.4-demo, la más reciente) | 100% |
@@ -154,32 +172,32 @@
 
 ---
 
-## ❌ No Iniciado - Fase Posterior
+## 🔶 En Progreso
 
-### App Supervisor (Web — React + Vite + Firebase Hosting)
-**Cambio de plan (2026-08-23)**: reemplaza el plan original de Java + Swing + Apache POI. Ver "Decisiones de Diseño — App Supervisor" en CLAUDE.md para el debate completo.
-- [ ] Proyecto Vite inicial + conexión a Firebase Web SDK (Firestore + Storage)
-- [ ] Dashboard principal
-- [ ] **Filtros**: fecha, placa, chofer, destino
+### App Supervisor (Web — React + Vite + Firebase Hosting) — carpeta `supervisor-web/`
+**Cambio de plan (2026-08-23)**: reemplaza el plan original de Java + Swing + Apache POI. Ver "Decisiones de Diseño — App Supervisor" en CLAUDE.md para el debate completo. Arrancado 2026-09-01, ver sesión correspondiente arriba para el detalle.
+- [x] Proyecto Vite inicial + conexión a Firebase Web SDK (Firestore + Storage)
+- [x] Dashboard principal v1 (`src/pages/Dashboard.jsx`)
+- [x] **Filtros**: fecha (desde/hasta), placa, chofer, destino
 - [ ] **CRUD Catálogos** (botones explícitos tipo "Agregar empleado"/"Editar"/"Eliminar", el supervisor no sabe de BDs):
   - [ ] Agregar/editar/eliminar (soft) choferes
   - [ ] Agregar/editar/eliminar (soft) camiones/placas
   - [ ] Agregar/editar/eliminar (soft) destinos
   - [ ] Soft-delete (bool activo → inactivo) en todos los catálogos
-- [ ] **Visualización de viajes**:
-  - [ ] Filtros aplicados
-  - [ ] Estado: activo vs concluido
-  - [ ] Datos en tabla
+- [x] **Visualización de viajes**:
+  - [x] Filtros aplicados
+  - [x] Estado: activo vs concluido (badge)
+  - [x] Datos en tabla
+- [ ] **Detalle de viaje** (solo lectura, click desde la tabla — aún no existe):
+  - [ ] Todos los campos del checklist, itinerario, notas/fotos
+  - [ ] Rendimiento combustible: (KM_final_último - KM_inicial_primero) / sum(litros), solo válido si tanque salió y regresó lleno
+  - [ ] Alerta servicio: si (km_salida - kilometrajeUltimoServicio) ≥ 9000
 - [ ] **Imprimir formato con respuestas**:
   - [ ] Vista HTML imprimible (reemplaza plan original de generar .docx con Apache POI)
   - [ ] "Imprimir → Guardar como PDF" del navegador
-- [ ] **Métricas**:
-  - [ ] Cantidad de combustible cargado por viaje
-  - [ ] Rendimiento combustible: (KM_final_último - KM_inicial_primero) / sum(litros)
-  - [ ] Válido solo si tanque salió y regresó lleno
-  - [ ] Otras métricas útiles a criterio (ej. alerta de servicio, promedio por chofer/placa)
-- [ ] **Deploy**: Firebase Hosting, dar el link al supervisor
-  - [ ] Alerta servicio: si (km_salida - kilometrajeUltimoServicio) ≥ 9000
+- [x] **Problemas pendientes**: alerta en el Dashboard con lista de incidentes (`estado: "Pendiente"`)
+  - [ ] Botón "Marcar como resuelto" (aún no implementado)
+- [ ] **Deploy**: Firebase Hosting, dar el link público al cliente para la demo
 
 ---
 

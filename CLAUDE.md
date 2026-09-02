@@ -198,9 +198,19 @@ El cliente pidió que no se pierda el progreso si el chofer cierra la app a medi
 - Botón siempre visible: "+ Agregar carga de combustible" (ubicación, kilometraje, costo/litro, litros) → cualquier momento, no bloquea nada
 - Botón siempre visible (2026-09-01, IMPLEMENTADO ✅ — feedback cliente real): **"Reportar problema"** — para incidentes tipo choque/avería durante el trayecto. Solo disponible con viaje activo (no concluido), igual que "Agregar carga de combustible". Pide descripción + foto obligatoria (cámara), crea documento en `incidentes` con `estado: "Pendiente"`. El Supervisor lo verá y lo marcará como resuelto (ver sección Supervisor).
 
-## FLUJO APP SUPERVISOR — PENDIENTE DE INICIAR (propuesta, no confirmada aún)
+## FLUJO APP SUPERVISOR — EN PROGRESO (arrancada 2026-09-01)
 
 Acceso: desde Windows, vía navegador (URL de Firebase Hosting), no una app instalada. Ver debate de stack en [Decisiones de Diseño — App Supervisor](#-decisiones-de-diseño--app-supervisor-2026-08-23).
+
+**Implementación (2026-09-01)**:
+- Carpeta `supervisor-web/`, hermana de `app/` dentro del mismo repo — NO es un repo aparte
+- Vite + React, **JavaScript plano (sin TypeScript)** — decisión por velocidad, sin overhead de tipado para este prototipo
+- Librería de componentes: **Mantine** (`@mantine/core` + `@mantine/hooks`), ya decidido, no shadcn/Tailwind
+- Firebase Web SDK conectado al mismo proyecto `checklist-choferes` que usa Android — config en `supervisor-web/src/firebase.js` (Web App registrada en la consola de Firebase)
+- Para trabajar: abrir la carpeta raíz `ChecklistChofer/` en VS Code (no solo `supervisor-web/`, para que se vea este CLAUDE.md/PROGRESS.md si se abre ahí una sesión de Claude Code), terminal → `cd supervisor-web` → `npm run dev` → `http://localhost:5173`
+- Estado detallado de qué pantallas ya están armadas: ver PROGRESS.md → sección "App Supervisor (Web)"
+
+**Deploy (2026-09-01)**: en vivo en **https://checklist-choferes.web.app** (Firebase Hosting, gratis — no es un servidor "prendido" que cobre por tiempo activo, solo por almacenamiento/transferencia si se excede la capa gratuita, muy lejos del uso real de esta demo). `firebase-tools` instalado global y logueado con la cuenta del usuario, no vuelve a pedir login. Para volver a desplegar tras nuevos cambios: dentro de `supervisor-web/`, `npm run build` y luego `firebase deploy --only hosting`. Config en `supervisor-web/firebase.json` + `.firebaserc` (proyecto `checklist-choferes`, `public: dist`, rewrite SPA a `index.html`).
 
 Hay 2 tipos de usuario en el sistema: **Chofer** (Android) y **Supervisor** (esta app web). Sin autenticación/login por ahora (acceso directo, ver "Fuera de alcance").
 
