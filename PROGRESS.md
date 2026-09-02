@@ -59,7 +59,7 @@
 | **App Supervisor (Web)** | ❌ No iniciada — stack decidido (React+Vite+Firebase Hosting), pendiente arrancar | 0% |
 | **Fotos/Storage** | ✅ Completo (con compresión) | 100% |
 | **Botones especiales** | ✅ Listo | 100% |
-| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.2-demo) | 100% |
+| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.4-demo, la más reciente) | 100% |
 
 ---
 
