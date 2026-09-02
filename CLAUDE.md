@@ -1,12 +1,13 @@
 # CLAUDE.md — Proyecto Checklist Digital de Flotilla
 
 ## Contexto general
-App para digitalizar el checklist diario de seguridad de choferes de una flotilla de camiones (actualmente en papel, se pierden hojas). Demo para presentar a un cliente informal, prioridad: velocidad de desarrollo sobre estética. NO es una entrega de trabajo formal, es un prototipo funcional.
+App para digitalizar el checklist diario de seguridad de choferes de una flotilla de camiones (actualmente en papel, se pierden hojas). Demo para presentar a un **cliente real** (2026-09-01: el cliente ya está dando feedback activo sobre la app, ver "Feedback del cliente real" más abajo), prioridad: velocidad de desarrollo. NO es una entrega de trabajo formal, es un prototipo funcional.
 
 ## Preferencias de trabajo del usuario
 - Es estudiante, pero para este proyecto quiere AVANZAR RÁPIDO, no explicaciones detalladas de código línea por línea.
-- SÍ requiere verificación de que las cosas funcionan: después de completar cada sección del formulario (ver checklist en PROGRESO.md), compilar, correr en emulador/dispositivo, y confirmar que la función trabaja y que los datos se guardan correctamente en Firestore antes de avanzar a la siguiente sección. Pausar y pedir confirmación del usuario en cada uno de estos checkpoints.
-- No se requiere UI bonita, solo funcional.
+- SÍ requiere verificación de que las cosas funcionan: después de completar cada sección del formulario (ver checklist en PROGRESS.md), compilar, correr en emulador/dispositivo, y confirmar que la función trabaja y que los datos se guardan correctamente en Firestore antes de avanzar a la siguiente sección. Pausar y pedir confirmación del usuario en cada uno de estos checkpoints.
+- **Android**: no se requiere UI bonita, solo funcional (ya construida y aprobada, no se retrabaja estética).
+- **App Supervisor (web)**: (2026-09-01) el cliente pidió explícitamente buena presentación ("lúcete") porque él la va a ver directamente — sí importa que se vea profesional. Usar una librería de componentes gratuita (Mantine o shadcn/ui + Tailwind) para lograrlo rápido sin invertir tiempo en diseño a mano.
 
 ## Stack técnico
 - **App móvil**: Android nativo, Kotlin, Jetpack Compose, minSdk 26 (Oreo)
@@ -98,6 +99,21 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   fechaCarga: timestamp        // automática al agregar
 }
 
+### Colección incidentes (2026-09-01, nueva — feedback cliente real)
+Nivel raíz (no subcolección de `viajes`) para que el Supervisor pueda consultar todos los pendientes cruzando viajes sin recorrerlos uno por uno.
+{
+  id: string,
+  viajeId: string,
+  choferId: string,
+  choferNombre: string,        // desnormalizado para no hacer join en la tabla del Supervisor
+  placa: string,                // desnormalizado, igual razón
+  descripcion: string,
+  fotoURL: string,              // obligatoria, solo cámara (mismo patrón que el resto de fotos)
+  fecha: timestamp,             // automática al reportar
+  estado: "Pendiente" | "Resuelto",
+  fechaResuelto: timestamp|null
+}
+
 ## FLUJO APP ANDROID (Chofer)
 
 ### Reanudación de sesión (2026-08-25)
@@ -106,6 +122,11 @@ Si se cierra la app con un viaje sin concluir (después de "Iniciar Viaje" pero 
 **Fallback si el viaje ya no existe**: si al retomar (Checklist o Control de Viaje) el `viajeId` guardado localmente ya no tiene documento en Firestore (por ejemplo, se borró manualmente desde la consola), la app detecta que `viaje == null` tras terminar de cargar y regresa sola a Pantalla 1 (limpia la sesión guardada) en vez de dejar una pantalla en blanco sin salida.
 
 **Limpieza de datos de prueba (2026-08-25)**: se revisó la colección `viajes` en la consola de Firebase antes de arrancar la app Supervisor — tenía 55 documentos, de los cuales solo 1 estaba `concluido: true` y 1 era el huérfano válido conocido; los 53 restantes eran basura de pruebas (sin `concluido` bien definido). Se borró toda la colección `viajes` (recursivo, incluidas subcolecciones `destinos`/`cargasCombustible`) para no arrastrar datos sucios al dashboard del Supervisor. Los catálogos (`choferes`, `camiones`, `destinosCatalogo`) no se tocaron. Costo: insignificante (borrar cuenta como escritura; la capa gratuita de Blaze da 20,000 escrituras/día).
+
+### Autoguardado de progreso (2026-09-01, IMPLEMENTADO ✅ — feedback cliente real)
+El cliente pidió que no se pierda el progreso si el chofer cierra la app a medio llenar el formulario. La implementación real difiere según en qué pantalla esté, porque el flujo del código está partido en 3 pantallas encadenadas (`ViajeScreen` → `ChecklistScreen` → `ControlViajeScreen`), no una sola "Pantalla 1" como se describía antes en este documento:
+- **`ViajeScreen`** (datos básicos + destinos, ANTES de que exista el doc `viajes/{id}`): hoy si se cierra la app aquí se pierde todo. Se guardará un **borrador local** (SharedPreferences/DataStore) de los campos ya capturados, y se restaurará automáticamente al reabrir la app en esta pantalla.
+- **`ChecklistScreen`** (combustible/inspección/documentación/observaciones, el doc del viaje YA existe): en vez de guardar todo hasta el botón final, cada respuesta se escribe directo al doc de Firestore según se va capturando (autoguardado incremental). Así, si la app se cierra a mitad del checklist, no hay nada que perder — ya estaba guardado — y la reanudación de sesión existente (`RetomarViaje` → `Pantalla.Checklist`) ya lo recupera todo tal cual quedó.
 
 ### Pantalla 1: Formulario inicial (ViajeScreen) — IMPLEMENTADO ✅
 
@@ -175,6 +196,7 @@ Si se cierra la app con un viaje sin concluir (después de "Iniciar Viaje" pero 
   - Con fechaSalida sin fechaLlegada → "Ya llegué a [destino]" → pide km final, canastillas entregadas/regresadas, nota+foto opcionales → guarda fechaLlegada (auto)
   - Al completar último destino → viaje.concluido = true
 - Botón siempre visible: "+ Agregar carga de combustible" (ubicación, kilometraje, costo/litro, litros) → cualquier momento, no bloquea nada
+- Botón siempre visible (2026-09-01, IMPLEMENTADO ✅ — feedback cliente real): **"Reportar problema"** — para incidentes tipo choque/avería durante el trayecto. Solo disponible con viaje activo (no concluido), igual que "Agregar carga de combustible". Pide descripción + foto obligatoria (cámara), crea documento en `incidentes` con `estado: "Pendiente"`. El Supervisor lo verá y lo marcará como resuelto (ver sección Supervisor).
 
 ## FLUJO APP SUPERVISOR — PENDIENTE DE INICIAR (propuesta, no confirmada aún)
 
@@ -187,6 +209,11 @@ Hay 2 tipos de usuario en el sistema: **Chofer** (Android) y **Supervisor** (est
 - Lista de viajes con indicador **activo vs concluido** (campo `concluido` bool, ya existe en Firestore)
 - Alerta visual si diferencia km >= 9000 vs kilometrajeUltimoServicio
 - Datos útiles a mostrar: cantidad de combustible cargado por viaje, rendimiento (ver fórmula abajo), y otras métricas que se consideren útiles
+
+### Problemas pendientes (2026-09-01, nueva — feedback cliente real)
+- Sección/badge visible en el Dashboard mostrando el conteo de incidentes con `estado: "Pendiente"` (colección `incidentes`, ver esquema)
+- Vista con foto, chofer, placa, descripción, fecha y link al viaje de cada pendiente, ordenada por fecha
+- Botón "Marcar como resuelto" → `estado: "Resuelto"` + `fechaResuelto` (auto). No se borra el registro (mismo criterio de soft-delete que el resto del sistema), solo deja de contar como pendiente/dejar de alertar
 
 ### Detalle de viaje (solo lectura, sin edición)
 - Todos los campos del checklist, itinerario, notas/fotos

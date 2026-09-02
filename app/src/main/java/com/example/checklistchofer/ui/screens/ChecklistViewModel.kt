@@ -13,6 +13,8 @@ import com.example.checklistchofer.data.InspeccionGeneral
 import com.example.checklistchofer.data.ObservacionFoto
 import com.example.checklistchofer.data.PresionLlanta
 import com.example.checklistchofer.data.Viaje
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,6 +51,25 @@ class ChecklistViewModel(
 
     init {
         cargarDatos()
+    }
+
+    // Autoguardado (2026-09-01): el doc del viaje ya existe desde ViajeScreen,
+    // así que cada respuesta se escribe directo a Firestore (debounced 600ms)
+    // en vez de esperar al botón final — si la app se cierra a mitad del
+    // checklist, no se pierde nada de lo ya capturado.
+    private var autoguardarJob: Job? = null
+
+    private fun autoguardar() {
+        val v = _viaje.value ?: return
+        autoguardarJob?.cancel()
+        autoguardarJob = viewModelScope.launch {
+            delay(600)
+            try {
+                repository.updateViaje(v)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun cargarDatos() {
@@ -93,6 +114,7 @@ class ChecklistViewModel(
             destinosSeleccionados = actuales.map { it.id }
         )
         validarFormulario()
+        autoguardar()
     }
 
     fun eliminarDestino(index: Int) {
@@ -105,6 +127,7 @@ class ChecklistViewModel(
                 destinosSeleccionados = actuales.map { it.id }
             )
             validarFormulario()
+            autoguardar()
         }
     }
 
@@ -119,6 +142,7 @@ class ChecklistViewModel(
             )
         )
         validarFormulario()
+        autoguardar()
     }
 
     fun updateTanqueLlenoRegreso(valor: String, observacion: String) {
@@ -130,6 +154,7 @@ class ChecklistViewModel(
             )
         )
         validarFormulario()
+        autoguardar()
     }
 
     fun updateLimpiezaCajaCabina(valor: String, observacion: String) {
@@ -141,6 +166,7 @@ class ChecklistViewModel(
             )
         )
         validarFormulario()
+        autoguardar()
     }
 
     fun updateFotoCombustible(campo: String, url: String) {
@@ -152,6 +178,7 @@ class ChecklistViewModel(
             else -> c
         }
         _viaje.value = _viaje.value?.copy(combustibleYLimpieza = nuevo)
+        autoguardar()
     }
 
     // ========== INSPECCIÓN GENERAL (18 CAMPOS) ==========
@@ -180,6 +207,7 @@ class ChecklistViewModel(
 
         _viaje.value = _viaje.value?.copy(inspeccionGeneral = nuevaInspeccion)
         validarFormulario()
+        autoguardar()
     }
 
     fun updateFotoInspeccion(campo: String, url: String) {
@@ -205,51 +233,61 @@ class ChecklistViewModel(
         }
 
         _viaje.value = _viaje.value?.copy(inspeccionGeneral = nuevaInspeccion)
+        autoguardar()
     }
 
     fun updatePresionLlantas(llantas: List<PresionLlanta>) {
         _viaje.value = _viaje.value?.copy(presionLlantas = llantas)
         validarFormulario()
+        autoguardar()
     }
 
     fun updatePresionLlantasObservacion(observacion: String) {
         val actual = _viaje.value?.presionLlantasObservacion ?: ObservacionFoto()
         _viaje.value = _viaje.value?.copy(presionLlantasObservacion = actual.copy(observacion = observacion))
+        autoguardar()
     }
 
     fun updateFotoPresionLlantas(url: String) {
         val actual = _viaje.value?.presionLlantasObservacion ?: ObservacionFoto()
         _viaje.value = _viaje.value?.copy(presionLlantasObservacion = actual.copy(fotoURL = url))
+        autoguardar()
     }
 
     fun updateUreaPorcentaje(valor: Int) {
         _viaje.value = _viaje.value?.copy(ureaPorcentaje = valor)
         validarFormulario()
+        autoguardar()
     }
 
     fun updateUreaObservacion(observacion: String) {
         val actual = _viaje.value?.ureaObservacion ?: ObservacionFoto()
         _viaje.value = _viaje.value?.copy(ureaObservacion = actual.copy(observacion = observacion))
+        autoguardar()
     }
 
     fun updateFotoUrea(url: String) {
         val actual = _viaje.value?.ureaObservacion ?: ObservacionFoto()
         _viaje.value = _viaje.value?.copy(ureaObservacion = actual.copy(fotoURL = url))
+        autoguardar()
     }
 
     fun updateCombustibleThermo(valor: String) {
         _viaje.value = _viaje.value?.copy(combustibleThermo = valor)
         validarFormulario()
+        autoguardar()
     }
 
     fun updateCombustibleThermoObservacion(observacion: String) {
         val actual = _viaje.value?.combustibleThermoObservacion ?: ObservacionFoto()
         _viaje.value = _viaje.value?.copy(combustibleThermoObservacion = actual.copy(observacion = observacion))
+        autoguardar()
     }
 
     fun updateFotoCombustibleThermo(url: String) {
         val actual = _viaje.value?.combustibleThermoObservacion ?: ObservacionFoto()
         _viaje.value = _viaje.value?.copy(combustibleThermoObservacion = actual.copy(fotoURL = url))
+        autoguardar()
     }
 
     // ========== DOCUMENTACIÓN ==========
@@ -267,6 +305,7 @@ class ChecklistViewModel(
 
         _viaje.value = _viaje.value?.copy(documentacionEquipo = nueva)
         validarFormulario()
+        autoguardar()
     }
 
     fun updateFotoDocumentacion(campo: String, url: String) {
@@ -281,12 +320,14 @@ class ChecklistViewModel(
         }
 
         _viaje.value = _viaje.value?.copy(documentacionEquipo = nueva)
+        autoguardar()
     }
 
     // ========== OBSERVACIONES ==========
 
     fun updateObservacionesGenerales(observaciones: String) {
         _viaje.value = _viaje.value?.copy(observacionesGenerales = observaciones)
+        autoguardar()
     }
 
     // ========== VALIDACIÓN ==========
@@ -336,6 +377,8 @@ class ChecklistViewModel(
             _error.value = "Completa todos los campos requeridos"
             return
         }
+
+        autoguardarJob?.cancel()
 
         viewModelScope.launch {
             try {

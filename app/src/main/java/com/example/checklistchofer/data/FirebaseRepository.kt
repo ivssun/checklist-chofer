@@ -319,6 +319,15 @@ class FirebaseRepository {
             .toObjects(CargaCombustible::class.java)
     }
 
+    // ========== COLECCIÓN: INCIDENTES ==========
+
+    suspend fun addIncidente(incidente: Incidente): String {
+        val docRef = db.collection("incidentes").document()
+        val id = docRef.id
+        docRef.set(incidente.copy(id = id)).await()
+        return id
+    }
+
     // ========== MÉTRICAS ==========
 
     suspend fun calcularRendimientoCombustible(viajeId: String): Float {

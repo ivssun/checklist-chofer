@@ -1,5 +1,6 @@
 package com.example.checklistchofer.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
@@ -54,7 +56,13 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViajeScreen(
-    viewModel: ViajeViewModel = remember { ViajeViewModel() },
+    viewModel: ViajeViewModel = run {
+        val context = LocalContext.current
+        val prefsBorrador = remember {
+            context.getSharedPreferences("checklist_borrador", Context.MODE_PRIVATE)
+        }
+        remember { ViajeViewModel(prefs = prefsBorrador) }
+    },
     onViajeCreado: (String) -> Unit = {}
 ) {
     val choferes by viewModel.choferes.collectAsState()

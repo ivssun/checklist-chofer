@@ -1,5 +1,7 @@
 package com.example.checklistchofer.ui.screens
 
+import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.checklistchofer.data.Camion
@@ -13,8 +15,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Date
 
+// Borrador local (2026-09-01): si se cierra la app a medio llenar el
+// formulario inicial (ANTES de que exista el doc del viaje en Firestore),
+// se pierde todo. Se guarda cada campo en SharedPreferences y se restaura
+// al reabrir, hasta que se crea el viaje (iniciarViaje) y se limpia.
+private const val KEY_CHOFER_ID = "borrador_chofer_id"
+private const val KEY_TIPO_UNIDAD = "borrador_tipo_unidad"
+private const val KEY_PLACA_MANUAL = "borrador_placa_manual"
+private const val KEY_USAR_PLACA_OTRO = "borrador_usar_placa_otro"
+private const val KEY_DETALLE_RENTA = "borrador_detalle_renta"
+private const val KEY_USAR_DETALLE_RENTA_OTRO = "borrador_usar_detalle_renta_otro"
+private const val KEY_DETALLE_RENTA_MANUAL = "borrador_detalle_renta_manual"
+private const val KEY_PLACA_RENTA = "borrador_placa_renta"
+private const val KEY_CAMION_ID = "borrador_camion_id"
+private const val KEY_ECONOMICO = "borrador_economico"
+
 class ViajeViewModel(
-    private val repository: FirebaseRepository = FirebaseRepository()
+    private val repository: FirebaseRepository = FirebaseRepository(),
+    private val prefs: SharedPreferences? = null
 ) : ViewModel() {
 
     // ========== STATE ==========
@@ -96,6 +114,8 @@ class ViajeViewModel(
                 _choferes.value = choferesCargados
                 _camiones.value = camionsCargados
 
+                restaurarBorrador()
+
                 _error.value = null
             } catch (e: Exception) {
                 _error.value = "Error cargando catálogos: ${e.message}"
@@ -106,8 +126,59 @@ class ViajeViewModel(
         }
     }
 
+    // ========== BORRADOR LOCAL ==========
+
+    private fun guardarBorrador() {
+        val p = prefs ?: return
+        p.edit {
+            putString(KEY_CHOFER_ID, _choferSeleccionado.value?.id ?: "")
+            putString(KEY_TIPO_UNIDAD, _tipoUnidad.value)
+            putString(KEY_PLACA_MANUAL, _placaManual.value)
+            putBoolean(KEY_USAR_PLACA_OTRO, _usarPlacaOtro.value)
+            putString(KEY_DETALLE_RENTA, _detalleRenta.value)
+            putBoolean(KEY_USAR_DETALLE_RENTA_OTRO, _usarDetalleRentaOtro.value)
+            putString(KEY_DETALLE_RENTA_MANUAL, _detalleRentaManual.value)
+            putString(KEY_PLACA_RENTA, _placaRentaSeleccionada.value)
+            putString(KEY_CAMION_ID, _camionSeleccionado.value?.id ?: "")
+            putString(KEY_ECONOMICO, _economicoManual.value)
+        }
+    }
+
+    // No reutiliza cambiarTipoUnidad() porque esa función limpia las
+    // selecciones dependientes (es para cuando el chofer CAMBIA el tipo a
+    // mano, no para restaurar un borrador ya consistente).
+    private fun restaurarBorrador() {
+        val p = prefs ?: return
+
+        val choferId = p.getString(KEY_CHOFER_ID, "") ?: ""
+        if (choferId.isNotEmpty()) {
+            _choferes.value.find { it.id == choferId }?.let { _choferSeleccionado.value = it }
+        }
+
+        val tipo = p.getString(KEY_TIPO_UNIDAD, "") ?: ""
+        if (tipo.isNotEmpty()) {
+            _tipoUnidad.value = tipo
+            _camionesTopo.value = _camiones.value.filter { it.tipo == tipo }
+        }
+
+        _placaManual.value = p.getString(KEY_PLACA_MANUAL, "") ?: ""
+        _usarPlacaOtro.value = p.getBoolean(KEY_USAR_PLACA_OTRO, false)
+        _detalleRenta.value = p.getString(KEY_DETALLE_RENTA, "") ?: ""
+        _usarDetalleRentaOtro.value = p.getBoolean(KEY_USAR_DETALLE_RENTA_OTRO, false)
+        _detalleRentaManual.value = p.getString(KEY_DETALLE_RENTA_MANUAL, "") ?: ""
+        _placaRentaSeleccionada.value = p.getString(KEY_PLACA_RENTA, "") ?: ""
+
+        val camionId = p.getString(KEY_CAMION_ID, "") ?: ""
+        if (camionId.isNotEmpty()) {
+            _camionesTopo.value.find { it.id == camionId }?.let { _camionSeleccionado.value = it }
+        }
+
+        _economicoManual.value = p.getString(KEY_ECONOMICO, "") ?: ""
+    }
+
     fun seleccionarChofer(chofer: Chofer) {
         _choferSeleccionado.value = chofer
+        guardarBorrador()
     }
 
     fun cambiarTipoUnidad(tipo: String) {
@@ -123,45 +194,54 @@ class ViajeViewModel(
         _detalleRentaManual.value = ""
         _placaRentaSeleccionada.value = ""
         _economicoManual.value = ""
+        guardarBorrador()
     }
 
     fun seleccionarCamion(camion: Camion) {
         _camionSeleccionado.value = camion
         _usarPlacaOtro.value = false
         _placaManual.value = ""
+        guardarBorrador()
     }
 
     fun seleccionarPlacaOtro() {
         _usarPlacaOtro.value = true
         _camionSeleccionado.value = null
         _placaRentaSeleccionada.value = ""
+        guardarBorrador()
     }
 
     fun actualizarPlacaManual(placa: String) {
         _placaManual.value = placa
+        guardarBorrador()
     }
 
     fun seleccionarDetalleRenta(marca: String) {
         _detalleRenta.value = marca
         _usarDetalleRentaOtro.value = false
+        guardarBorrador()
     }
 
     fun seleccionarDetalleRentaOtro() {
         _usarDetalleRentaOtro.value = true
         _detalleRenta.value = ""
+        guardarBorrador()
     }
 
     fun actualizarDetalleRentaManual(valor: String) {
         _detalleRentaManual.value = valor
+        guardarBorrador()
     }
 
     fun seleccionarPlacaRenta(placa: String) {
         _placaRentaSeleccionada.value = placa
         _usarPlacaOtro.value = false
+        guardarBorrador()
     }
 
     fun actualizarEconomicoManual(economico: String) {
         _economicoManual.value = economico
+        guardarBorrador()
     }
 
     fun iniciarViaje() {
@@ -278,6 +358,9 @@ class ViajeViewModel(
 
                 // Guardar en Firestore
                 val viajeId = repository.createViaje(nuevoViaje)
+
+                // El viaje ya existe en Firestore; el borrador local ya no aplica
+                prefs?.edit { clear() }
 
                 // Notificar éxito
                 _viajeCreado.value = viajeId

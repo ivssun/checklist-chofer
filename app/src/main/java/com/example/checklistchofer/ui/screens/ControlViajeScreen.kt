@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +64,7 @@ fun ControlViajeScreen(
     val cargasCombustible by viewModel.cargasCombustible.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val incidenteReportado by viewModel.incidenteReportado.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -67,6 +72,13 @@ fun ControlViajeScreen(
         error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.limpiarError()
+        }
+    }
+
+    LaunchedEffect(incidenteReportado) {
+        if (incidenteReportado) {
+            snackbarHostState.showSnackbar("Problema reportado. El supervisor lo verá.")
+            viewModel.limpiarIncidenteReportado()
         }
     }
 
@@ -82,6 +94,7 @@ fun ControlViajeScreen(
     var mostrarDialogoIniciar by remember { mutableStateOf<Destino?>(null) }
     var mostrarDialogoLlegada by remember { mutableStateOf<Destino?>(null) }
     var mostrarDialogoCombustible by remember { mutableStateOf(false) }
+    var mostrarDialogoIncidente by remember { mutableStateOf(false) }
 
     val destinoActual = destinos.firstOrNull { it.fechaLlegada == null }
     val concluido = viaje?.concluido == true
@@ -164,6 +177,18 @@ fun ControlViajeScreen(
                         Text("${formatFecha(carga.fechaCarga)} — ${carga.ubicacion} — ${carga.litros} L @ $${carga.costoPorLitro}/L (km ${carga.kilometraje})")
                     }
                 }
+
+                if (!concluido) {
+                    OutlinedButton(
+                        onClick = { mostrarDialogoIncidente = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("🚨 Reportar problema")
+                    }
+                }
             }
         }
     }
@@ -197,6 +222,17 @@ fun ControlViajeScreen(
             onConfirmar = { ubicacion, km, costo, litros ->
                 viewModel.agregarCargaCombustible(ubicacion, km, costo, litros)
                 mostrarDialogoCombustible = false
+            }
+        )
+    }
+
+    if (mostrarDialogoIncidente) {
+        DialogoReportarProblema(
+            viajeId = viajeId,
+            onDismiss = { mostrarDialogoIncidente = false },
+            onConfirmar = { descripcion, fotoURL ->
+                viewModel.reportarIncidente(descripcion, fotoURL)
+                mostrarDialogoIncidente = false
             }
         )
     }
@@ -270,6 +306,9 @@ fun DialogoLlegadaDestino(
     var canastillasRegresadas by remember { mutableStateOf("") }
     var fotoURL by remember { mutableStateOf<String?>(destino.fotoURL) }
 
+    val entregadasFocus = remember { FocusRequester() }
+    val regresadasFocus = remember { FocusRequester() }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Ya llegué a ${destino.cedisDestino}") },
@@ -280,7 +319,8 @@ fun DialogoLlegadaDestino(
                     onValueChange = { kmFinal = it.filter { c -> c.isDigit() } },
                     label = { Text("Km final") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { entregadasFocus.requestFocus() }),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -288,8 +328,11 @@ fun DialogoLlegadaDestino(
                     onValueChange = { canastillasEntregadas = it.filter { c -> c.isDigit() } },
                     label = { Text("Canastillas entregadas") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { regresadasFocus.requestFocus() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(entregadasFocus)
                 )
                 OutlinedTextField(
                     value = canastillasRegresadas,
@@ -297,7 +340,9 @@ fun DialogoLlegadaDestino(
                     label = { Text("Canastillas regresadas") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(regresadasFocus)
                 )
                 BotonFotoCamara(
                     storagePath = "viajes/$viajeId/destinos/${destino.id}.jpg",
@@ -329,6 +374,51 @@ fun DialogoLlegadaDestino(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun DialogoReportarProblema(
+    viajeId: String,
+    onDismiss: () -> Unit,
+    onConfirmar: (String, String) -> Unit
+) {
+    var descripcion by remember { mutableStateOf("") }
+    var fotoURL by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reportar problema") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Foto obligatoria. El supervisor lo verá como pendiente hasta resolverlo.")
+                OutlinedTextField(
+                    value = descripcion,
+                    onValueChange = { descripcion = it },
+                    label = { Text("¿Qué pasó?") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+                BotonFotoCamara(
+                    storagePath = "incidentes/$viajeId/${System.currentTimeMillis()}.jpg",
+                    fotoURL = fotoURL,
+                    onFotoSubida = { fotoURL = it },
+                    obligatoria = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { fotoURL?.let { onConfirmar(descripcion, it) } },
+                enabled = descripcion.isNotBlank() && fotoURL != null
+            ) {
+                Text("Enviar reporte")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun DialogoCargaCombustible(
     onDismiss: () -> Unit,
     onConfirmar: (String, Int, Float, Float) -> Unit
@@ -337,6 +427,10 @@ fun DialogoCargaCombustible(
     var kilometraje by remember { mutableStateOf("") }
     var costoPorLitro by remember { mutableStateOf("") }
     var litros by remember { mutableStateOf("") }
+
+    val kilometrajeFocus = remember { FocusRequester() }
+    val costoFocus = remember { FocusRequester() }
+    val litrosFocus = remember { FocusRequester() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -348,6 +442,8 @@ fun DialogoCargaCombustible(
                     onValueChange = { ubicacion = it },
                     label = { Text("Ubicación") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { kilometrajeFocus.requestFocus() }),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -355,24 +451,32 @@ fun DialogoCargaCombustible(
                     onValueChange = { kilometraje = it.filter { c -> c.isDigit() } },
                     label = { Text("Kilometraje al cargar") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { costoFocus.requestFocus() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(kilometrajeFocus)
                 )
                 OutlinedTextField(
                     value = costoPorLitro,
                     onValueChange = { costoPorLitro = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Costo por litro") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { litrosFocus.requestFocus() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(costoFocus)
                 )
                 OutlinedTextField(
                     value = litros,
                     onValueChange = { litros = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Litros cargados") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(litrosFocus)
                 )
             }
         },

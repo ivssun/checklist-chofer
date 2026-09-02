@@ -106,6 +106,7 @@ fun BotonFotoCamara(
     storagePath: String,
     fotoURL: String?,
     onFotoSubida: (String) -> Unit,
+    obligatoria: Boolean = false,
     repository: FirebaseRepository = remember { FirebaseRepository() }
 ) {
     val context = LocalContext.current
@@ -173,6 +174,7 @@ fun BotonFotoCamara(
                 when {
                     subiendo -> "Subiendo foto..."
                     !fotoURL.isNullOrEmpty() -> "📷 Foto tomada ✓"
+                    obligatoria -> "📷 Tomar foto"
                     else -> "📷 Tomar foto (opcional)"
                 }
             )

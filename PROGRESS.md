@@ -1,8 +1,19 @@
 # ChecklistChofer - Progress & Status
 
-**Última actualización**: 2026-08-25  
-**Demo objetivo**: Lunes 2026-08-25  
-**Estado general**: Android completo, con colores de marca y distribuido (repo GitHub privado + APK vía Release v0.2). App Supervisor: plan cambiado de Java/Swing a **app web** — debate y decisión documentados en CLAUDE.md, construcción del proyecto AÚN NO ha arrancado.
+**Última actualización**: 2026-09-01  
+**Demo objetivo**: Lunes 2026-08-25 (ya pasada) — ahora preparando demo con **cliente real**  
+**Estado general**: Android completo, incluyendo el feedback del cliente real (autoguardado extendido + reporte de incidentes + ajustes UX), confirmado en dispositivo. App Supervisor: plan cambiado de Java/Swing a **app web** — debate y decisión documentados en CLAUDE.md, construcción del proyecto AÚN NO ha arrancado — es lo único que falta para la demo.
+
+### Sesión 2026-09-01: Feedback del cliente real (pre-demo)
+- [x] Android — Autoguardado `ViajeScreen`: borrador local (SharedPreferences) de los campos antes de crear el doc del viaje, restaurado al reabrir — confirmado funcionando por el usuario
+- [x] Android — Autoguardado `ChecklistScreen`: cada respuesta se escribe directo a Firestore (debounced 600ms) al capturarla, en vez de esperar al botón final — confirmado funcionando
+- [x] Android — Botón "🚨 Reportar problema" en `ControlViajeScreen` (con viaje activo): descripción + foto obligatoria → colección `incidentes` (`estado: "Pendiente"`) — confirmado funcionando
+- [x] Android — Fix UX: texto del botón de foto decía "(opcional)" incluso cuando la foto es obligatoria (Reportar problema) — ahora `BotonFotoCamara` acepta `obligatoria: Boolean` y ajusta el texto
+- [x] Android — Botón "Siguiente" del teclado encadenado en los diálogos "Ya llegué a [destino]" (Km final → Canastillas entregadas → Canastillas regresadas) y "Agregar carga de combustible" (Ubicación → Km → Costo/L → Litros), antes todos mostraban "Listo" — confirmado funcionando
+- [ ] Supervisor (web) — Sección "Problemas pendientes" en el Dashboard: lista de incidentes, botón "Marcar como resuelto"
+- Ver detalle completo de las features en CLAUDE.md → "Autoguardado de progreso (2026-09-01)", "Reporte de incidentes" (Pantalla 2), "Colección incidentes", "Problemas pendientes" (Supervisor)
+- Cambio de prioridad: para la app Supervisor, el cliente pidió buena presentación visual (antes se priorizaba solo velocidad/funcionalidad) — usar librería de componentes gratuita (Mantine o shadcn/ui + Tailwind)
+- **Android: las 3 features del feedback del cliente están completas y confirmadas en dispositivo. No queda pendiente nada más de Android para esta demo — el siguiente bloque de trabajo es la app Supervisor (web), que sigue sin arrancar.**
 
 ### Sesión 2026-08-25: Feedback de QA (Jose Canela)
 - [x] Dropdown de Nombre: ahora filtra por texto al escribir (antes solo lista sin buscar) — confirmado funcionando por el usuario

@@ -130,3 +130,18 @@ data class CargaCombustible(
     val litros: Float = 0f,
     val fechaCarga: Timestamp? = null
 )
+
+// ========== COLECCIÓN: INCIDENTES (nivel raíz, no subcolección) ==========
+
+data class Incidente(
+    val id: String = "",
+    val viajeId: String = "",
+    val choferId: String = "",
+    val choferNombre: String = "", // desnormalizado para la tabla del Supervisor
+    val placa: String = "",        // desnormalizado, misma razón
+    val descripcion: String = "",
+    val fotoURL: String = "",
+    val fecha: Timestamp? = null,
+    val estado: String = "Pendiente", // "Pendiente" | "Resuelto"
+    val fechaResuelto: Timestamp? = null
+)

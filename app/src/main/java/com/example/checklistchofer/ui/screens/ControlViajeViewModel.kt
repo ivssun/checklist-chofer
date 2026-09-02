@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.checklistchofer.data.CargaCombustible
 import com.example.checklistchofer.data.Destino
 import com.example.checklistchofer.data.FirebaseRepository
+import com.example.checklistchofer.data.Incidente
 import com.example.checklistchofer.data.Viaje
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,9 @@ class ControlViajeViewModel(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val _incidenteReportado = MutableStateFlow(false)
+    val incidenteReportado: StateFlow<Boolean> = _incidenteReportado.asStateFlow()
 
     init {
         cargarDatos()
@@ -140,6 +144,38 @@ class ControlViajeViewModel(
                 _isLoading.value = false
             }
         }
+    }
+
+    fun reportarIncidente(descripcion: String, fotoURL: String) {
+        val v = _viaje.value ?: return
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                val chofer = repository.getChoferById(v.choferId)
+                repository.addIncidente(
+                    Incidente(
+                        viajeId = viajeId,
+                        choferId = v.choferId,
+                        choferNombre = chofer?.nombre ?: "",
+                        placa = v.placa,
+                        descripcion = descripcion,
+                        fotoURL = fotoURL,
+                        fecha = Timestamp(Date()),
+                        estado = "Pendiente"
+                    )
+                )
+                _incidenteReportado.value = true
+                _error.value = null
+            } catch (e: Exception) {
+                _error.value = "Error al reportar problema: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun limpiarIncidenteReportado() {
+        _incidenteReportado.value = false
     }
 
     fun limpiarError() {
