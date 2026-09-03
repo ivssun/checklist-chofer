@@ -109,3 +109,182 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ===== Impresión de Checklist (formato Panissimo) ===== */
+
+.cli-imprimible {
+  display: none;
+}
+
+.cli-hoja {
+  background: #fff;
+  color: #000;
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 11px;
+}
+
+.cli-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid #1f3864;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+
+.cli-logo {
+  height: 40px;
+}
+
+.cli-titulo {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cli-folio {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cli-pie {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 16px;
+  font-size: 10px;
+}
+
+.cli-tabla-datos,
+.cli-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.cli-tabla-datos td {
+  border: 1px solid #000;
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.cli-th-label {
+  background: #1f3864;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cli-td-valor {
+  font-weight: 700;
+}
+
+.cli-hora-label {
+  background: #1f3864;
+  color: #fff;
+  font-weight: 700;
+  border: 1px solid #000;
+  padding: 4px 6px;
+  width: 40%;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cli-hora-valor {
+  background: #d9d9d9;
+  border: 1px solid #000;
+  padding: 4px 6px;
+  width: 60%;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cli-seccion {
+  background: #1f3864;
+  color: #fff;
+  font-weight: 700;
+  padding: 3px 6px;
+  margin-top: 8px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cli-tabla th {
+  background: #1f3864;
+  color: #fff;
+  border: 1px solid #000;
+  padding: 3px 4px;
+  font-size: 10px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cli-tabla td {
+  border: 1px solid #000;
+  padding: 3px 4px;
+  text-align: center;
+}
+
+.cli-td-label {
+  text-align: left;
+}
+
+.cli-th-concepto {
+  width: 34%;
+}
+
+.cli-th-obs,
+.cli-td-obs {
+  text-align: left;
+  width: 26%;
+}
+
+.cli-td-check {
+  width: 6%;
+}
+
+.cli-check {
+  font-size: 13px;
+}
+
+.cli-obs-generales {
+  margin-top: 12px;
+}
+
+.cli-obs-caja {
+  border: 1px solid #000;
+  min-height: 40px;
+  padding: 4px 6px;
+  margin-top: 4px;
+}
+
+@media print {
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-imprimir {
+    display: none !important;
+  }
+
+  .cli-imprimible {
+    display: block;
+  }
+
+  .cli-hoja {
+    page-break-after: always;
+    padding: 12px;
+  }
+
+  .cli-hoja:last-child {
+    page-break-after: auto;
+  }
+
+  @page {
+    size: letter;
+    margin: 12mm;
+  }
+}

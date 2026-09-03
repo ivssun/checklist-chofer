@@ -48,17 +48,18 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   concluido: bool,            // false al crear, true al completar último destino
 
   combustibleYLimpieza: {
-    tanqueLlenoSalida: { valor: bool, observacion: string, fotoURL: string|null },
-    tanqueLlenoRegreso: { valor: bool, observacion: string, fotoURL: string|null },
-    limpiezaCajaCabina: { valor: bool, observacion: string, fotoURL: string|null }
+    tanqueLlenoSalida: { valor: "SÍ"|"NO"|"", observacion: string, fotoURL: string|null },
+    tanqueLlenoRegreso: { valor: "SÍ"|"NO"|"", observacion: string, fotoURL: string|null },
+    limpiezaCajaCabina: { valor: "SÍ"|"NO"|"", observacion: string, fotoURL: string|null }
   },
 
   inspeccionGeneral: {
     llantasDesgaste, llantaRefaccion, sistemaFrenado, luces, espejos,
-    limpiaparabrisasClaxon, nivelAceiteMotor, nivelAgua, nivelLiquidoFrenos,
-    bateria, triangulosSeguridad, gatoHidraulico, carroceria,
-    candadosCaja, bandasSeguridadCaja
-    // cada uno: { valor: "bien"|"mal"|"na", observacion: string, fotoURL: string|null }
+    limpiaparabrisas, nivelAceite, nivelAgua, nivelLiquidoFreno,
+    bateria, triangulos, gato, carroceria,
+    candados, bandas
+    // cada uno: { valor: "BIEN"|"MAL"|"N/A"|"", observacion: string, fotoURL: string|null }
+    // (nombres de campo verificados contra Models.kt, 2026-09-02 — este documento tenía nombres distintos que nunca existieron en el código)
   },
 
   presionLlantas: [ { etiqueta: string, presion: number } ],
@@ -69,8 +70,13 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   combustibleThermoObservacion: { observacion: string, fotoURL: string|null },
 
   documentacionEquipo: {
-    copiaSUA, polizaSeguro, tarjetaCirculacion, equipoSeguridadCompleto
-    // cada uno: { valor: bool, observacion: string, fotoURL: string|null }
+    licenciaChofer, tarjetaCirculacion, segurosVehiculo, documentoViaje
+    // ⚠️ nombres de campo NO corresponden a su significado real (probablemente renombrados en la UI sin renombrar el modelo) — el label que ve el chofer en Android (ChecklistScreen.kt) y el que debe imprimirse es:
+    //   licenciaChofer      → "Copia de SÚA (Seguro Social)"
+    //   tarjetaCirculacion  → "Póliza de seguro vigente"
+    //   segurosVehiculo     → "Tarjeta de circulación"
+    //   documentoViaje      → "Equipo de seguridad completo"
+    // cada uno: { valor: "SÍ"|"NO"|"", observacion: string, fotoURL: string|null } (mismo CheckField que combustibleYLimpieza/inspeccionGeneral, no bool)
   },
 
   observacionesGenerales: string

@@ -2,7 +2,7 @@
 
 **Última actualización**: 2026-09-01  
 **Demo objetivo**: Lunes 2026-08-25 (ya pasada) — ahora preparando demo con **cliente real**  
-**Estado general**: Android completo, incluyendo el feedback del cliente real (autoguardado extendido + reporte de incidentes + ajustes UX), confirmado en dispositivo. App Supervisor (web): **arrancada y desplegada** — Dashboard v1 (lista de viajes + filtros + alerta de incidentes pendientes) confirmado funcionando por el usuario, en vivo en https://checklist-choferes.web.app. Sigue en progreso — ver sección "App Supervisor (Web)" más abajo para lo que falta.
+**Estado general**: Android completo, incluyendo el feedback del cliente real (autoguardado extendido + reporte de incidentes + ajustes UX), confirmado en dispositivo. App Supervisor (web): **completa** — Dashboard con métricas, Detalle de viaje, vista imprimible con formato Word real, CRUD de catálogos y tema de marca Panissimo, todo confirmado funcionando por el usuario y en vivo en https://checklist-choferes.web.app.
 
 ### Sesión 2026-09-01 (continuación): App Supervisor arranca — Dashboard v1
 - [x] Proyecto Vite + React (JavaScript, sin TypeScript) creado en `supervisor-web/` — carpeta hermana de `app/`, dentro del mismo repo (monorepo simple, no repo aparte)
@@ -74,7 +74,7 @@
 |-----------|--------|-----------|
 | **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos → tema de color) | 100% |
 | **Firebase Backend** | ✅ Listo (Firestore + Storage con plan Blaze) | 100% |
-| **App Supervisor (Web)** | 🔶 En progreso — Dashboard v1 (lista, filtros, alerta de incidentes) desplegado en https://checklist-choferes.web.app | ~35% |
+| **App Supervisor (Web)** | ✅ Todo lo especificado en CLAUDE.md implementado y desplegado en https://checklist-choferes.web.app (Dashboard con métricas, Detalle de viaje, Imprimir, CRUD catálogos, tema de marca) | 100% |
 | **Fotos/Storage** | ✅ Completo (con compresión) | 100% |
 | **Botones especiales** | ✅ Listo | 100% |
 | **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.4-demo, la más reciente) | 100% |
@@ -179,25 +179,30 @@
 - [x] Proyecto Vite inicial + conexión a Firebase Web SDK (Firestore + Storage)
 - [x] Dashboard principal v1 (`src/pages/Dashboard.jsx`)
 - [x] **Filtros**: fecha (desde/hasta), placa, chofer, destino
-- [ ] **CRUD Catálogos** (botones explícitos tipo "Agregar empleado"/"Editar"/"Eliminar", el supervisor no sabe de BDs):
-  - [ ] Agregar/editar/eliminar (soft) choferes
-  - [ ] Agregar/editar/eliminar (soft) camiones/placas
-  - [ ] Agregar/editar/eliminar (soft) destinos
-  - [ ] Soft-delete (bool activo → inactivo) en todos los catálogos
+- [x] **CRUD Catálogos** (`src/pages/Catalogos.jsx`, ruta `/catalogos`, botón "Administrar catálogos" desde el Dashboard) — confirmado funcionando por el usuario (2026-09-02)
+  - [x] Agregar/editar/eliminar (soft) choferes
+  - [x] Agregar/editar/eliminar (soft) camiones (tipo, placa, no. unidad, km último servicio, posiciones de llantas dinámicas — default Delantera Izq/Der, Trasera Izq/Der)
+  - [x] Agregar/editar/eliminar (soft) destinos
+  - [x] Soft-delete (bool activo → inactivo) en todos los catálogos, con botón "Reactivar" para revertir
 - [x] **Visualización de viajes**:
   - [x] Filtros aplicados
   - [x] Estado: activo vs concluido (badge)
   - [x] Datos en tabla
-- [ ] **Detalle de viaje** (solo lectura, click desde la tabla — aún no existe):
-  - [ ] Todos los campos del checklist, itinerario, notas/fotos
-  - [ ] Rendimiento combustible: (KM_final_último - KM_inicial_primero) / sum(litros), solo válido si tanque salió y regresó lleno
-  - [ ] Alerta servicio: si (km_salida - kilometrajeUltimoServicio) ≥ 9000
-- [ ] **Imprimir formato con respuestas**:
-  - [ ] Vista HTML imprimible (reemplaza plan original de generar .docx con Apache POI)
-  - [ ] "Imprimir → Guardar como PDF" del navegador
+- [x] **Detalle de viaje** (`src/pages/ViajeDetalle.jsx`, ruta `/viajes/:viajeId`, click desde fila del Dashboard) — confirmado funcionando por el usuario (2026-09-02)
+  - [x] Todos los campos del checklist, itinerario, cargas de combustible, notas/fotos
+  - [x] Rendimiento combustible: (KM_final_último - KM_inicial_primero) / sum(litros), solo válido si tanque salió y regresó lleno
+  - [x] Alerta servicio: si (km_salida - kilometrajeUltimoServicio) ≥ 9000
+  - Nota: al construir esta pantalla se detectó que CLAUDE.md documentaba nombres de campo de `inspeccionGeneral`/`documentacionEquipo` que nunca existieron en `Models.kt` (p. ej. `nivelAceiteMotor` vs el real `nivelAceite`, `copiaSUA`/`polizaSeguro`/`equipoSeguridadCompleto` vs los reales `licenciaChofer`/`segurosVehiculo`/`documentoViaje`) — corregido en CLAUDE.md
+- [x] **Imprimir formato con respuestas** — confirmado funcionando por el usuario (2026-09-02)
+  - [x] Vista HTML imprimible (`src/pages/ImpresionChecklist.jsx`), replica el formato Word real de la empresa (logo Panissimo, encabezados azul marino, checkboxes SÍ/NO/BIEN/MAL/N/A, firmas al pie) — plantilla de referencia guardada en `supervisor-web/reference/Checklist.pdf`
+  - [x] "Imprimir → Guardar como PDF" del navegador, con nombre de archivo sugerido `Checklist_{viajeId}` (vía `document.title` antes de `window.print()`)
+  - [x] Filas dinámicas (solo destinos/cargas reales, sin límite fijo de 3/6 como el papel)
+  - Nota: la carpeta de destino del PDF no se puede forzar desde la web (limitación de navegador, no de la app) — el usuario la configura una vez en los ajustes de descargas de su navegador
 - [x] **Problemas pendientes**: alerta en el Dashboard con lista de incidentes (`estado: "Pendiente"`)
-  - [ ] Botón "Marcar como resuelto" (aún no implementado)
-- [ ] **Deploy**: Firebase Hosting, dar el link público al cliente para la demo
+  - [x] Botón "Marcar como resuelto" — confirmado funcionando por el usuario (2026-09-02)
+- [x] **Tema de marca**: paleta Mantine con verde Panissimo (`#1F6E44`) como `primaryColor`, header con logo en todas las pantallas, encabezados de sección resaltados (Detalle de viaje) — confirmado funcionando por el usuario (2026-09-02)
+- [x] **Deploy**: Firebase Hosting, link público https://checklist-choferes.web.app — redesplegado 2026-09-02 con CRUD de catálogos, tema de marca, y métricas del Dashboard
+- [x] **Dashboard — datos útiles de la spec original**: columnas de combustible cargado, rendimiento y badge ⚠️ de alerta de servicio (≥9,000 km) por viaje, calculadas leyendo `destinos`/`cargasCombustible` de cada uno — confirmado funcionando por el usuario (2026-09-02)
 
 ---
 
