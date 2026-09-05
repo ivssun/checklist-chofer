@@ -43,7 +43,7 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  margin-top: 16px;
+  margin-top: 64px;
   font-size: 10px;
 }
 
@@ -123,6 +123,15 @@ body {
   text-align: left;
 }
 
+/* Filas con observación de las páginas 1 y 3 (combustible/limpieza,
+   documentación y equipo) — el doble de espacio vertical que una fila
+   normal, para que quepa anotar algo a mano. No se usa en la página 2
+   (inspección general), que se queda con el renglón normal. */
+.cli-fila-obs-doble td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 .cli-th-concepto {
   width: 34%;
 }
@@ -147,7 +156,7 @@ body {
 
 .cli-obs-caja {
   border: 1px solid #000;
-  min-height: 40px;
+  min-height: 120px;
   padding: 4px 6px;
   margin-top: 4px;
 }
@@ -176,7 +185,7 @@ body {
   }
 
   @page {
-    size: letter;
+    size: letter landscape;
     margin: 12mm;
   }
 }

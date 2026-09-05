@@ -1,8 +1,18 @@
 # ChecklistChofer - Progress & Status
 
-**Última actualización**: 2026-09-01  
-**Demo objetivo**: Lunes 2026-08-25 (ya pasada) — ahora preparando demo con **cliente real**  
-**Estado general**: Android completo, incluyendo el feedback del cliente real (autoguardado extendido + reporte de incidentes + ajustes UX), confirmado en dispositivo. App Supervisor (web): **completa** — Dashboard con métricas, Detalle de viaje, vista imprimible con formato Word real, CRUD de catálogos y tema de marca Panissimo, todo confirmado funcionando por el usuario y en vivo en https://checklist-choferes.web.app.
+**Última actualización**: 2026-09-05  
+**Demo objetivo**: Lunes 2026-08-25 (ya pasada) — cliente real dando feedback activo, iterando día a día  
+**Estado general**: Android y Supervisor web completos, con dos rondas extra de feedback del cliente real (2026-09-04 y 2026-09-05) ya implementadas y confirmadas: reestructuración del checklist por secciones, validaciones de kilometraje y canastillas, edición de itinerario antes de iniciar, estado "Cancelado", impresión en horizontal con mejor espaciado, filtros nuevos y datos en vivo (`onSnapshot`) en el Dashboard, sección de incidentes visible en Detalle de viaje e impresión, e ícono de ayuda para el cálculo de rendimiento. Todo confirmado funcionando por el usuario y en vivo en https://checklist-choferes.web.app. Ver "Sesión 2026-09-04/05" más abajo para el detalle completo.
+
+### Sesión 2026-09-04/05: Segunda ronda de feedback del cliente real (Android + Supervisor web)
+Todo implementado y confirmado funcionando por el usuario en dispositivo/navegador real. Detalle completo de cada punto en las secciones correspondientes más abajo (buscar por título):
+- **Android — ChecklistScreen**: pantalla "hub" con una tarjeta por sección (progreso + contador) en vez de scroll único; botón "Continuar llenando checklist" en rojo al final de cada sección; selector de combustible Thermo con botones visibles (sin dropdown); foto opcional en Observaciones Generales; NEXT/DONE encadenado en presión de llantas
+- **Android — ControlViajeScreen**: itinerario editable (agregar/quitar destino) mientras el viaje no ha arrancado; advertencia (con opción de confirmar) si el km inicial es menor al del último servicio del camión; bloqueo total si el km inicial es menor al km final del destino anterior, o si el km final es menor al inicial del mismo destino; nueva pregunta "Canastillas iniciales" al iniciar el primer destino; bloqueo si "canastillas entregadas" excede lo disponible
+- **Android — estado "Cancelado"**: al elegir "Cancelar e iniciar un nuevo viaje" ahora se marca `cancelado: true` en Firestore (antes quedaba huérfano sin ninguna marca)
+- **Supervisor web — Dashboard**: datos en vivo (`onSnapshot`, sin recargar) para viajes e incidentes pendientes; filtro de Estado (Activo/Concluido/Cancelado); switch "Solo unidades con alerta de servicio"; ícono de ayuda "?" junto a Rendimiento con la fórmula
+- **Supervisor web — Detalle de viaje**: también en vivo (viaje, destinos, cargas); nuevos campos "Km último servicio" y "Canastillas iniciales"; alerta roja si el km inicial es menor al del último servicio; sección "Incidentes reportados" (visible aunque estén Resueltos, a diferencia del Dashboard)
+- **Supervisor web — Impresión**: horizontal en vez de vertical; filas con observación (páginas 1 y 3) con el doble de espacio; más espacio antes de firmas (duplicado dos veces: 16px → 32px → 64px); "Observaciones generales" con el triple de espacio; nuevo campo "Canastillas iniciales"; nueva sección "Incidentes reportados"
+- **Datos de prueba**: se borraron `viajes`/`incidentes` (acumulaban basura de todo un día de pruebas) y se repobló con 6 viajes + 3 incidentes curados a mano que cubren todos los estados y features nuevas (ver sección "Reset de datos de prueba" más abajo)
 
 ### Sesión 2026-09-01 (continuación): App Supervisor arranca — Dashboard v1
 - [x] Proyecto Vite + React (JavaScript, sin TypeScript) creado en `supervisor-web/` — carpeta hermana de `app/`, dentro del mismo repo (monorepo simple, no repo aparte)
@@ -72,12 +82,12 @@
 
 | Componente | Estado | % Completo |
 |-----------|--------|-----------|
-| **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos → tema de color) | 100% |
+| **Android App** | ✅ Flujo completo (chofer → checklist → bitácora → fotos → tema de color) + 2ª ronda de feedback del cliente real (2026-09-04/05) | 100% |
 | **Firebase Backend** | ✅ Listo (Firestore + Storage con plan Blaze) | 100% |
-| **App Supervisor (Web)** | ✅ Todo lo especificado en CLAUDE.md implementado y desplegado en https://checklist-choferes.web.app (Dashboard con métricas, Detalle de viaje, Imprimir, CRUD catálogos, tema de marca) | 100% |
+| **App Supervisor (Web)** | ✅ Todo lo especificado en CLAUDE.md implementado y desplegado en https://checklist-choferes.web.app (Dashboard con métricas y datos en vivo, Detalle de viaje, Imprimir en horizontal, CRUD catálogos, tema de marca) | 100% |
 | **Fotos/Storage** | ✅ Completo (con compresión) | 100% |
 | **Botones especiales** | ✅ Listo | 100% |
-| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.4-demo, la más reciente) | 100% |
+| **Distribución** | ✅ Repo privado en GitHub (`ivssun/checklist-chofer`) + APK debug en Release (v0.5-demo, la más reciente) | 100% |
 
 ---
 
@@ -117,11 +127,102 @@
 - [x] Opciones: **SÍ / NO** (combustible, limpieza, documentación)
 - [x] Presión llantas en posición 3 (tabla dinámica)
 - [x] Nivel Urea en posición 11 (slider 0-100%)
-- [x] Combustible Thermo en posición 12 (dropdown)
+- [x] Combustible Thermo en posición 12 (botones visibles, sin dropdown — cambiado 2026-09-04)
 - [x] Itinerario: agregar/eliminar destinos (bloquea post-guardado)
 - [x] Botones SÍ/NO/BIEN/MAL/N/A destacados visualmente
 - [x] Sin números en etiquetas de preguntas
 - [x] Sin "18 campos" en título
+
+### UI - ChecklistScreen: reestructuración por secciones (2026-09-04, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] Pantalla "hub" con tarjeta por sección (Itinerario, Combustible y Limpieza, Inspección General, Documentación y Equipo, Observaciones Generales), cada una con contador "X de Y puntos" + anillo de progreso, navega a pantalla propia de esa sección al tocarla
+- [x] Botón "Guardar Checklist Completo" se queda en el hub (no dentro de cada sección)
+- [x] Combustible Thermo: opciones visibles como botones en vez de dropdown "Seleccionar"
+- [x] Observaciones Generales: agregado botón de cámara (nuevo campo `observacionesGeneralesFotoURL`), para reportar con foto algo extraordinario no cubierto por el formulario
+- [x] Supervisor web (`ViajeDetalle.jsx`): muestra link "Ver foto" de `observacionesGeneralesFotoURL` si existe, mismo patrón que el resto de campos con foto
+- [x] Presión de llantas: NEXT salta al siguiente campo, DONE en la última llanta
+- [x] Botón rojo "Continuar llenando checklist" al final de cada sección (además de la flecha de regreso)
+
+### Android App - ControlViajeScreen: editar itinerario antes de iniciar (2026-09-04, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] Botón "✏️ Editar" junto a "Itinerario", visible solo si ningún destino tiene `fechaSalida` (viaje no arrancado) y el viaje no está concluido
+- [x] En modo edición: agregar destino (dropdown del catálogo, `agregarDestinoAlItinerario`) y quitar destino (`eliminarDestinoDelItinerario`, mínimo 1 restante)
+- [x] Al quitar un destino de en medio, se renumera `orden` de los restantes (contiguo 0..n-1)
+- [x] Nuevo método en `FirebaseRepository`: `deleteDestino` (borrado real, no soft-delete — el destino aún no tiene datos capturados en ese punto)
+
+### Advertencia de km inicial sospechoso (2026-09-04, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] Android (`DialogoIniciarDestino`): si el km inicial capturado es menor a `kilometrajeUltimoServicio` del camión, se muestra advertencia roja y los botones cambian a "Revisar" / "Sí, confirmar" (no bloquea, solo exige confirmar que no es error de captura)
+- [x] `ControlViajeViewModel` ahora también carga el `camion` del viaje (igual que `ChecklistViewModel`) para tener `kilometrajeUltimoServicio` disponible
+- [x] Supervisor web (`ViajeDetalle.jsx`): nuevo campo "Km último servicio" en la tarjeta de datos del viaje + alerta roja si el km inicial del primer destino es menor a ese valor — desplegado a https://checklist-choferes.web.app (2026-09-04)
+
+### Validación bloqueante de km final < km inicial (2026-09-05, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] `DialogoLlegadaDestino` ("Ya llegué a X"): el botón "Confirmar" ahora se deshabilita si el km final no es mayor al km inicial (antes solo se sabía hasta después de tocar Confirmar, vía snackbar)
+- [x] Campo "Km final" marcado en rojo (`isError`) con texto de ayuda inline ("Debe ser mayor al km inicial (X)") mientras el valor no sea válido
+- [x] Se conserva la validación en `ControlViajeViewModel.registrarLlegada` como red de seguridad, aunque ya no debería alcanzarse desde la UI
+
+### Dashboard en tiempo real con onSnapshot (2026-09-05, feedback cliente real) — desplegado a https://checklist-choferes.web.app
+- [x] `Dashboard.jsx`: colecciones `viajes` e `incidentes` (pendientes) ahora usan `onSnapshot` de Firestore en vez de `getDocs` — la tabla y la alerta de problemas pendientes se actualizan solas si un chofer crea un viaje o reporta un problema desde Android, sin recargar la página
+- [x] Catálogos (choferes/camiones/destinosCatalogo) se quedan con carga única (`getDocs`), cambian poco mientras se ve el Dashboard
+- [x] Probado con servidor local (`npm run dev`) contra el mismo proyecto Firebase — sin errores de consola, datos cargan correctamente
+- [x] `ViajeDetalle.jsx`: el doc del viaje, su itinerario (`destinos`) y sus `cargasCombustible` también se escuchan con `onSnapshot` — si el chofer concluye el viaje, llega a un destino o agrega una carga desde Android mientras el supervisor tiene esa pantalla abierta, se actualiza sola (badge ACTIVO/CONCLUIDO, tabla de itinerario, rendimiento). Chofer/camión/catálogo de destinos se quedan como carga única (no cambian por el progreso del viaje)
+
+### Estado "Cancelado" para viajes abandonados (2026-09-05, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] Nuevo campo `Viaje.cancelado: Boolean` (default false)
+- [x] Nuevo método `FirebaseRepository.cancelarViaje(viajeId)` — `update("cancelado", true)`
+- [x] `RetomarViajeScreen` (pantalla "Viaje en curso"): al elegir "Cancelar e iniciar un nuevo viaje" ahora escribe `cancelado: true` en Firestore antes de navegar a Pantalla 1 (antes el viaje quedaba huérfano sin ninguna marca)
+- [x] Supervisor web (Dashboard + `ViajeDetalle.jsx`): badge gris "Cancelado" en vez de "Activo"/"Concluido" cuando corresponde — desplegado a https://checklist-choferes.web.app
+
+### Km inicial no puede bajar del km final del destino anterior (2026-09-05, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] `DialogoIniciarDestino` ("Iniciar viaje a X"): si el km inicial es menor al km final del destino anterior del mismo itinerario, el campo se marca en rojo y el botón "Confirmar" se deshabilita — a diferencia de la advertencia de "último servicio" (que sí permite confirmar), este caso se bloquea de plano porque no hay ningún escenario real en el que baje dentro del mismo viaje
+- [x] `ControlViajeViewModel.iniciarDestino`: misma validación como red de seguridad server-side
+
+### Pregunta "Canastillas iniciales" (2026-09-05, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] Nuevo campo `Viaje.canastillasIniciales: Int?` (con cuántas canastillas sale el camión de la matriz)
+- [x] Se pregunta una sola vez, junto con "Km inicial" en el diálogo "Iniciar viaje a X" del **primer** destino del itinerario (no en los siguientes, que ya usan entregadas/regresadas)
+- [x] `ControlViajeViewModel.iniciarDestino` guarda el dato en el doc del viaje al confirmar
+- [x] Se muestra en `ControlViajeScreen` junto a Placa/Económico una vez capturado
+- [x] Supervisor web (`ViajeDetalle.jsx`): campo "Canastillas iniciales" en la tarjeta de datos del viaje, junto a "Km último servicio" — desplegado a https://checklist-choferes.web.app
+
+### Validación de canastillas disponibles (2026-09-05, feedback cliente real) — confirmado funcionando en dispositivo
+- [x] `DialogoLlegadaDestino` ("Ya llegué a X"): no se pueden entregar más canastillas de las que trae disponibles el camión en ese punto del viaje (`canastillasIniciales` − entregadas + regresadas de los destinos ya completados antes de este) — campo en rojo + botón "Confirmar" deshabilitado, se bloquea de plano (no hay override, a diferencia de la advertencia de km de servicio)
+- [x] `ControlViajeViewModel.registrarLlegada`: misma validación como red de seguridad server-side
+- [ ] No se limita "canastillas regresadas" (recoger vacías no tiene un tope natural ligado a `canastillasIniciales`)
+
+### Impresión en horizontal (2026-09-05, feedback cliente real) — desplegado a https://checklist-choferes.web.app
+- [x] `index.css`: `@page { size: letter landscape; margin: 12mm; }` (antes `size: letter` = vertical) — todas las tablas de `ImpresionChecklist.jsx` usan `width: 100%` sin anchos fijos, así que aprovechan el ancho extra sin romper el layout
+- [x] Confirmado funcionando por el usuario (2026-09-05)
+
+### Ajustes de espaciado en la impresión (2026-09-05, feedback cliente real) — confirmado funcionando por el usuario
+- [x] Página 1 (`ImpresionChecklist.jsx`): nuevo renglón "CANASTILLAS INICIALES" en la tabla de datos del viaje
+- [x] Filas con columna de observaciones en páginas 1 y 3 (Combustible y limpieza, Documentación y equipo — ambas usan `FilaSiNo`) con el doble de padding vertical (clase `cli-fila-obs-doble`), para que quepa anotar algo a mano. Página 2 (Inspección general, usa `FilaInspeccion`/`FilaLibre`) se queda sin cambios, tal como se pidió
+- [x] Más espacio entre las tablas y la sección de firmas (`.cli-pie`, margin-top 16px → 32px) en las 3 páginas
+- [x] (2026-09-05, segunda ronda) `.cli-pie` duplicado otra vez (32px → 64px) y `.cli-obs-caja` (Observaciones generales, página 3) triplicado (40px → 120px min-height) — confirmado funcionando por el usuario
+
+### Filtros nuevos en el Dashboard (2026-09-05, feedback cliente real) — probado con servidor local, desplegado a https://checklist-choferes.web.app
+- [x] Filtro "Estado" (Activo/Concluido/Cancelado) — se deriva de `viaje.cancelado`/`viaje.concluido`, no es un campo propio
+- [x] Switch "Solo unidades con alerta de servicio ⚠️" — filtra por `metricas[v.id]?.alertaServicio` (mismo cálculo ya usado para el badge ⚠️ Servicio de la tabla)
+
+### Reset de datos de prueba (2026-09-05)
+Se borraron las colecciones `viajes` (recursivo, con subcolecciones `destinos`/`cargasCombustible`) e `incidentes` — acumulaban muchos registros de pruebas de todo el día. Los catálogos (`choferes`, `camiones`, `destinosCatalogo`) NO se tocaron. Se repobló con 4 viajes de ejemplo curados a mano (script temporal con el SDK cliente de Firebase, reglas en modo prueba, borrado después de correr — no quedó en el repo) que cubren todos los estados y features nuevas del día:
+- `demo_viaje_a`: Concluido, buen rendimiento (7.00 km/L), sin alerta de servicio, canastillas iniciales, 2 destinos completos
+- `demo_viaje_b`: Concluido, **con alerta de servicio** (km inicial 80,500 vs último servicio 71,000), un punto de inspección en MAL, sin cargas de combustible (rendimiento "—")
+- `demo_viaje_c`: **Activo**, primer destino en curso, 2 destinos pendientes
+- `demo_viaje_d`: **Cancelado**, tipo Otro (sin camión de catálogo)
+- `demo_incidente_1`: Pendiente, ligado a `demo_viaje_b`, con foto (placeholder de placehold.co, no es una foto real de Storage)
+
+### Datos de ejemplo adicionales (2026-09-05) — verificado en el Dashboard desplegado
+- `demo_incidente_2` (Pendiente, ligado a `demo_viaje_a`) y `demo_incidente_3` (Pendiente, ligado a `demo_viaje_c`) — para que se vean 2 más en el banner de "problemas pendientes" del Dashboard, además del original
+- `demo_viaje_e` (concluido, Maria Torres, GHI789): fotos en "Tanque lleno (salida)" y en "Llantas (desgaste)" (MAL, con foto del desgaste)
+- `demo_viaje_f` (concluido, Jose Canela, DEF456): fotos en "Copia de SÚA" (Documentación) y en la observación de Urea
+- Mismo método que la primera ronda: script temporal con el SDK cliente de Firebase (reglas en modo prueba), borrado después de correr, no quedó en el repo
+
+### Incidentes visibles en Detalle de viaje e impresión (2026-09-05, feedback cliente real) — desplegado a https://checklist-choferes.web.app
+Antes de esto, un incidente resuelto desaparecía de toda la interfaz (el Dashboard solo muestra `estado: "Pendiente"`, y `ViajeDetalle.jsx`/impresión no lo mostraban en absoluto) — el registro seguía en Firestore pero no había forma de volver a verlo.
+- [x] `ViajeDetalle.jsx`: nueva sección "Incidentes reportados" (listener `onSnapshot` con `where('viajeId', '==', viajeId)`) — muestra TODOS los incidentes del viaje sin importar su estado, con foto, descripción, fecha, badge Pendiente/Resuelto y fecha de resolución si aplica
+- [x] Reporte impreso (`ImpresionChecklist.jsx`, página 3): misma sección como tabla (fecha, descripción, estado), sin foto — consistente con que el resto del documento impreso tampoco imprime fotos de ningún campo
+- [x] Probado con servidor local contra el viaje demo con incidente — confirmado renderiza bien en ambos estados (Pendiente y Resuelto)
+
+### Ícono de ayuda "¿Cómo se calcula?" para Rendimiento (2026-09-05, feedback cliente real) — confirmado funcionando por el usuario
+- [x] Ícono "?" junto al encabezado "Rendimiento" en la tabla del Dashboard — abre un `Popover` de Mantine (click, no hover) con la fórmula y la condición de tanque lleno ida/vuelta
+- [x] La automatización de navegador no pudo confirmarlo visualmente durante el desarrollo (el popover no se mantenía abierto en las capturas — artefacto del click sintético contra la detección de "click afuera" de Mantine/Portal, no del código), pero el usuario lo confirmó funcionando con un clic real
 
 ### Firebase & Persistencia
 - [x] Firestore Database configurado (proyecto checklist-choferes)

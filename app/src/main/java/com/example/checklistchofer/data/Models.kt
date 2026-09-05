@@ -39,7 +39,10 @@ data class Viaje(
     val fecha: Timestamp? = null,
     val horaLlegadaMatriz: Timestamp? = null,
     val concluido: Boolean = false,
+    val cancelado: Boolean = false, // el chofer eligió "Cancelar e iniciar un nuevo viaje" al reabrir la app con este viaje en curso
+
     val destinosSeleccionados: List<String> = emptyList(), // IDs de destinos del catálogo
+    val canastillasIniciales: Int? = null, // con cuántas canastillas sale el camión de la matriz — se captura junto con el km inicial del primer destino (2026-09-05, feedback cliente real)
     val combustibleYLimpieza: CombustibleYLimpieza = CombustibleYLimpieza(),
     val inspeccionGeneral: InspeccionGeneral = InspeccionGeneral(),
     val presionLlantas: List<PresionLlanta> = emptyList(),
@@ -49,7 +52,8 @@ data class Viaje(
     val combustibleThermo: String = "", // "0", "1/4", "1/2", "3/4", "Lleno"
     val combustibleThermoObservacion: ObservacionFoto = ObservacionFoto(),
     val documentacionEquipo: DocumentacionEquipo = DocumentacionEquipo(),
-    val observacionesGenerales: String = ""
+    val observacionesGenerales: String = "",
+    val observacionesGeneralesFotoURL: String? = null // foto opcional para reportar algo extraordinario no cubierto por el formulario
 )
 
 // ========== NESTED OBJECTS DENTRO DE VIAJE ==========

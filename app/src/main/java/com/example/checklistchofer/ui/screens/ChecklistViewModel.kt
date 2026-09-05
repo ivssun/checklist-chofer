@@ -330,6 +330,11 @@ class ChecklistViewModel(
         autoguardar()
     }
 
+    fun updateFotoObservacionesGenerales(url: String) {
+        _viaje.value = _viaje.value?.copy(observacionesGeneralesFotoURL = url)
+        autoguardar()
+    }
+
     // ========== VALIDACIÓN ==========
 
     private fun validarFormulario() {

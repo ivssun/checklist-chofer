@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { collection, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
@@ -11,8 +12,10 @@ import {
   Image,
   Loader,
   Paper,
+  Popover,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -51,29 +54,52 @@ export default function Dashboard() {
   const [filtroDestino, setFiltroDestino] = useState(null)
   const [filtroFechaInicio, setFiltroFechaInicio] = useState('')
   const [filtroFechaFin, setFiltroFechaFin] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState(null)
+  const [soloAlertaServicio, setSoloAlertaServicio] = useState(false)
+  const [rendimientoInfoAbierto, setRendimientoInfoAbierto] = useState(false)
 
+  // Viajes e incidentes pendientes se escuchan en vivo (onSnapshot) para que el
+  // Dashboard se actualice solo — sin recargar la página — en cuanto un chofer
+  // crea un viaje o reporta un problema desde Android. Los catálogos
+  // (choferes/camiones/destinos) cambian poco mientras se ve el Dashboard, así
+  // que esos se quedan como carga única (getDocs).
   useEffect(() => {
-    async function cargarTodo() {
+    const unsubViajes = onSnapshot(
+      query(collection(db, 'viajes'), orderBy('fecha', 'desc')),
+      (snap) => setViajes(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (e) => setError(e.message)
+    )
+
+    const unsubIncidentes = onSnapshot(
+      query(collection(db, 'incidentes'), where('estado', '==', 'Pendiente')),
+      (snap) => {
+        const incidentes = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        incidentes.sort((a, b) => (b.fecha?.toMillis() ?? 0) - (a.fecha?.toMillis() ?? 0))
+        setIncidentesPendientes(incidentes)
+      },
+      (e) => setError(e.message)
+    )
+
+    async function cargarCatalogos() {
       try {
-        const [viajesSnap, choferesSnap, camionesSnap, destinosSnap, incidentesSnap] = await Promise.all([
-          getDocs(query(collection(db, 'viajes'), orderBy('fecha', 'desc'))),
+        const [choferesSnap, camionesSnap, destinosSnap] = await Promise.all([
           getDocs(collection(db, 'choferes')),
           getDocs(collection(db, 'camiones')),
           getDocs(collection(db, 'destinosCatalogo')),
-          getDocs(query(collection(db, 'incidentes'), where('estado', '==', 'Pendiente'))),
         ])
-        setViajes(viajesSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
         setChoferes(choferesSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
         setCamiones(camionesSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
         setDestinosCatalogo(destinosSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
-        const incidentes = incidentesSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        incidentes.sort((a, b) => (b.fecha?.toMillis() ?? 0) - (a.fecha?.toMillis() ?? 0))
-        setIncidentesPendientes(incidentes)
       } catch (e) {
         setError(e.message)
       }
     }
-    cargarTodo()
+    cargarCatalogos()
+
+    return () => {
+      unsubViajes()
+      unsubIncidentes()
+    }
   }, [])
 
   async function marcarResuelto(incidenteId) {
@@ -181,9 +207,24 @@ export default function Dashboard() {
       ) {
         return false
       }
+      if (filtroEstado) {
+        const estado = v.cancelado ? 'cancelado' : v.concluido ? 'concluido' : 'activo'
+        if (estado !== filtroEstado) return false
+      }
+      if (soloAlertaServicio && !metricas[v.id]?.alertaServicio) return false
       return true
     })
-  }, [viajes, filtroChofer, filtroPlaca, filtroDestino, filtroFechaInicio, filtroFechaFin])
+  }, [
+    viajes,
+    filtroChofer,
+    filtroPlaca,
+    filtroDestino,
+    filtroFechaInicio,
+    filtroFechaFin,
+    filtroEstado,
+    soloAlertaServicio,
+    metricas,
+  ])
 
   return (
     <>
@@ -282,6 +323,26 @@ export default function Dashboard() {
             onChange={(e) => setFiltroFechaFin(e.currentTarget.value)}
           />
         </Group>
+        <Group mt="sm" align="center">
+          <Select
+            label="Estado"
+            placeholder="Todos"
+            data={[
+              { value: 'activo', label: 'Activo' },
+              { value: 'concluido', label: 'Concluido' },
+              { value: 'cancelado', label: 'Cancelado' },
+            ]}
+            value={filtroEstado}
+            onChange={setFiltroEstado}
+            clearable
+          />
+          <Switch
+            mt={22}
+            label="Solo unidades con alerta de servicio ⚠️"
+            checked={soloAlertaServicio}
+            onChange={(e) => setSoloAlertaServicio(e.currentTarget.checked)}
+          />
+        </Group>
       </Paper>
 
       {viajes === null && !error && <Loader mt="xl" />}
@@ -297,7 +358,40 @@ export default function Dashboard() {
               <Table.Th>Económico</Table.Th>
               <Table.Th>Destinos</Table.Th>
               <Table.Th>Combustible cargado</Table.Th>
-              <Table.Th>Rendimiento</Table.Th>
+              <Table.Th>
+                <Group gap={4} wrap="nowrap" align="center">
+                  <span>Rendimiento</span>
+                  <Popover
+                    width={280}
+                    position="bottom"
+                    withArrow
+                    shadow="md"
+                    opened={rendimientoInfoAbierto}
+                    onChange={setRendimientoInfoAbierto}
+                  >
+                    <Popover.Target>
+                      <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        color="gray"
+                        radius="xl"
+                        onClick={() => setRendimientoInfoAbierto((o) => !o)}
+                        aria-label="¿Cómo se calcula el rendimiento?"
+                      >
+                        ?
+                      </ActionIcon>
+                    </Popover.Target>
+                    <Popover.Dropdown>
+                      <Text size="xs" fw={700} tt="none" mb={4}>¿Cómo se calcula?</Text>
+                      <Text size="xs" tt="none" fw={400}>
+                        (Km final del último destino − Km inicial del primer destino) ÷ litros
+                        cargados durante el viaje. Solo se calcula si el tanque salió y regresó
+                        lleno — así los litros cargados representan exactamente lo consumido.
+                      </Text>
+                    </Popover.Dropdown>
+                  </Popover>
+                </Group>
+              </Table.Th>
               <Table.Th>Servicio</Table.Th>
               <Table.Th>Estado</Table.Th>
             </Table.Tr>
@@ -328,9 +422,13 @@ export default function Dashboard() {
                     {m?.alertaServicio && <Badge color="orange">⚠️ Servicio</Badge>}
                   </Table.Td>
                   <Table.Td>
-                    <Badge color={v.concluido ? 'panissimo' : 'blue'}>
-                      {v.concluido ? 'Concluido' : 'Activo'}
-                    </Badge>
+                    {v.cancelado ? (
+                      <Badge color="gray">Cancelado</Badge>
+                    ) : (
+                      <Badge color={v.concluido ? 'panissimo' : 'blue'}>
+                        {v.concluido ? 'Concluido' : 'Activo'}
+                      </Badge>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               )

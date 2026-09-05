@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import {
   Alert,
   Anchor,
@@ -8,6 +8,7 @@ import {
   Button,
   Container,
   Group,
+  Image,
   Loader,
   Paper,
   SimpleGrid,
@@ -138,43 +139,82 @@ export default function ViajeDetalle() {
   const [destinosCatalogo, setDestinosCatalogo] = useState([])
   const [destinos, setDestinos] = useState([])
   const [cargasCombustible, setCargasCombustible] = useState([])
+  const [incidentes, setIncidentes] = useState([])
   const [error, setError] = useState(null)
 
+  // El viaje, su itinerario y sus cargas de combustible se escuchan en vivo:
+  // si el chofer concluye el viaje, llega a un destino o agrega una carga
+  // desde Android mientras esta pantalla está abierta, se actualiza sola.
+  // Chofer/camión/catálogo de destinos son referencia y se quedan como
+  // carga única (getDoc/getDocs), igual que en el Dashboard.
   useEffect(() => {
-    async function cargar() {
-      try {
-        const viajeSnap = await getDoc(doc(db, 'viajes', viajeId))
-        if (!viajeSnap.exists()) {
-          setViaje(null)
-          return
-        }
-        const viajeData = { id: viajeSnap.id, ...viajeSnap.data() }
-        setViaje(viajeData)
+    setViaje(undefined)
+    setError(null)
 
-        const [choferSnap, destinosCatalogoSnap, destinosSnap, cargasSnap] = await Promise.all([
-          viajeData.choferId ? getDoc(doc(db, 'choferes', viajeData.choferId)) : Promise.resolve(null),
-          getDocs(collection(db, 'destinosCatalogo')),
-          getDocs(query(collection(db, 'viajes', viajeId, 'destinos'), orderBy('orden'))),
-          getDocs(collection(db, 'viajes', viajeId, 'cargasCombustible')),
-        ])
+    const unsubViaje = onSnapshot(
+      doc(db, 'viajes', viajeId),
+      (viajeSnap) => {
+        setViaje(viajeSnap.exists() ? { id: viajeSnap.id, ...viajeSnap.data() } : null)
+      },
+      (e) => setError(e.message)
+    )
 
-        if (choferSnap && choferSnap.exists()) {
-          setChofer({ id: choferSnap.id, ...choferSnap.data() })
-        }
-        setDestinosCatalogo(destinosCatalogoSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
-        setDestinos(destinosSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
-        setCargasCombustible(cargasSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    getDocs(collection(db, 'destinosCatalogo'))
+      .then((snap) => setDestinosCatalogo(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+      .catch((e) => setError(e.message))
 
-        if (viajeData.camionId) {
-          const camionSnap = await getDoc(doc(db, 'camiones', viajeData.camionId))
-          if (camionSnap.exists()) setCamion({ id: camionSnap.id, ...camionSnap.data() })
-        }
-      } catch (e) {
-        setError(e.message)
-      }
+    const unsubDestinos = onSnapshot(
+      query(collection(db, 'viajes', viajeId, 'destinos'), orderBy('orden')),
+      (snap) => setDestinos(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (e) => setError(e.message)
+    )
+
+    const unsubCargas = onSnapshot(
+      collection(db, 'viajes', viajeId, 'cargasCombustible'),
+      (snap) => setCargasCombustible(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (e) => setError(e.message)
+    )
+
+    // Incidentes de este viaje — se quedan visibles aquí aunque se marquen
+    // como Resueltos (a diferencia del Dashboard, que solo muestra pendientes).
+    const unsubIncidentes = onSnapshot(
+      query(collection(db, 'incidentes'), where('viajeId', '==', viajeId)),
+      (snap) => {
+        const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        lista.sort((a, b) => (b.fecha?.toMillis() ?? 0) - (a.fecha?.toMillis() ?? 0))
+        setIncidentes(lista)
+      },
+      (e) => setError(e.message)
+    )
+
+    return () => {
+      unsubViaje()
+      unsubDestinos()
+      unsubCargas()
+      unsubIncidentes()
     }
-    cargar()
   }, [viajeId])
+
+  // Chofer y camión son datos de referencia (no cambian por el progreso del
+  // viaje) — carga única cuando se conoce su id, sin volver a pedirlos en
+  // cada actualización del listener de arriba.
+  useEffect(() => {
+    if (!viaje?.choferId) return
+    getDoc(doc(db, 'choferes', viaje.choferId))
+      .then((snap) => {
+        if (snap.exists()) setChofer({ id: snap.id, ...snap.data() })
+      })
+      .catch((e) => setError(e.message))
+  }, [viaje?.choferId])
+
+  useEffect(() => {
+    if (!viaje?.camionId) return
+    getDoc(doc(db, 'camiones', viaje.camionId))
+      .then((snap) => {
+        if (snap.exists()) setCamion({ id: snap.id, ...snap.data() })
+      })
+      .catch((e) => setError(e.message))
+  }, [viaje?.camionId])
 
   const destinosMap = useMemo(
     () => Object.fromEntries(destinosCatalogo.map((d) => [d.id, d.nombre])),
@@ -206,6 +246,17 @@ export default function ViajeDetalle() {
     if (primero.kmInicial == null) return null
     const diferencia = primero.kmInicial - (camion.kilometrajeUltimoServicio ?? 0)
     return diferencia >= 9000 ? diferencia : null
+  }, [camion, destinos])
+
+  // Un camión no debería "perder" kilómetros, pero muy rara vez un taller
+  // ajusta el kilometraje registrado — no se prohíbe, solo se avisa para que
+  // se revise si no fue un error de captura del chofer.
+  const alertaKmMenor = useMemo(() => {
+    if (!camion || destinos.length === 0) return null
+    const primero = destinos[0]
+    if (primero.kmInicial == null) return null
+    const kmUltimoServicio = camion.kilometrajeUltimoServicio ?? 0
+    return primero.kmInicial < kmUltimoServicio ? { kmInicial: primero.kmInicial, kmUltimoServicio } : null
   }, [camion, destinos])
 
   function handleImprimir() {
@@ -262,9 +313,13 @@ export default function ViajeDetalle() {
         </Button>
         <Group>
           <Button onClick={handleImprimir}>Imprimir</Button>
-          <Badge color={viaje.concluido ? 'panissimo' : 'blue'} size="lg">
-            {viaje.concluido ? 'Concluido' : 'Activo'}
-          </Badge>
+          {viaje.cancelado ? (
+            <Badge color="gray" size="lg">Cancelado</Badge>
+          ) : (
+            <Badge color={viaje.concluido ? 'panissimo' : 'blue'} size="lg">
+              {viaje.concluido ? 'Concluido' : 'Activo'}
+            </Badge>
+          )}
         </Group>
       </Group>
 
@@ -276,6 +331,14 @@ export default function ViajeDetalle() {
         <Alert color="orange" title="⚠️ Alerta de servicio" mt="md">
           El camión lleva {alertaServicio.toLocaleString('es-MX')} km desde su último servicio
           (umbral: 9,000 km).
+        </Alert>
+      )}
+
+      {alertaKmMenor && (
+        <Alert color="red" title="⚠️ Revisar kilometraje inicial" mt="md">
+          El km inicial capturado ({alertaKmMenor.kmInicial.toLocaleString('es-MX')}) es menor al
+          registrado en el último servicio ({alertaKmMenor.kmUltimoServicio.toLocaleString('es-MX')} km).
+          Verifica que no haya sido un error de captura.
         </Alert>
       )}
 
@@ -297,6 +360,18 @@ export default function ViajeDetalle() {
             <EtiquetaCampo>Económico</EtiquetaCampo>
             <Text>{viaje.economico}</Text>
           </div>
+          {camion && (
+            <div>
+              <EtiquetaCampo>Km último servicio</EtiquetaCampo>
+              <Text>{camion.kilometrajeUltimoServicio?.toLocaleString('es-MX') ?? '—'}</Text>
+            </div>
+          )}
+          {viaje.canastillasIniciales != null && (
+            <div>
+              <EtiquetaCampo>Canastillas iniciales</EtiquetaCampo>
+              <Text>{viaje.canastillasIniciales}</Text>
+            </div>
+          )}
           {viaje.detalleRenta && (
             <div>
               <EtiquetaCampo>Detalle</EtiquetaCampo>
@@ -382,6 +457,35 @@ export default function ViajeDetalle() {
         </Table.Tbody>
       </Table>
 
+      {incidentes.length > 0 && (
+        <>
+          <SeccionTitulo>Incidentes reportados</SeccionTitulo>
+          <Stack gap="sm" mt="sm">
+            {incidentes.map((inc) => (
+              <Paper key={inc.id} withBorder p="sm">
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Group wrap="nowrap" align="flex-start">
+                    {inc.fotoURL && (
+                      <Anchor href={inc.fotoURL} target="_blank">
+                        <Image src={inc.fotoURL} alt="Foto del incidente" w={56} h={56} radius="sm" fit="cover" />
+                      </Anchor>
+                    )}
+                    <div>
+                      <Text size="sm">{inc.descripcion}</Text>
+                      <Text size="xs" c="dimmed">{formatFecha(inc.fecha)}</Text>
+                      {inc.estado === 'Resuelto' && inc.fechaResuelto && (
+                        <Text size="xs" c="dimmed">Resuelto: {formatFecha(inc.fechaResuelto)}</Text>
+                      )}
+                    </div>
+                  </Group>
+                  <Badge color={inc.estado === 'Resuelto' ? 'panissimo' : 'red'}>{inc.estado}</Badge>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+        </>
+      )}
+
       <SeccionTitulo>Combustible y limpieza</SeccionTitulo>
       <SimpleGrid cols={{ base: 1, sm: 3 }} mt="sm">
         {CAMPOS_COMBUSTIBLE_LIMPIEZA.map(([key, label]) => (
@@ -447,11 +551,16 @@ export default function ViajeDetalle() {
         ))}
       </SimpleGrid>
 
-      {viaje.observacionesGenerales && (
+      {(viaje.observacionesGenerales || viaje.observacionesGeneralesFotoURL) && (
         <>
           <SeccionTitulo>Observaciones generales</SeccionTitulo>
           <Paper withBorder p="sm" mt="sm">
             <Text size="sm">{viaje.observacionesGenerales}</Text>
+            {viaje.observacionesGeneralesFotoURL && (
+              <Anchor size="xs" href={viaje.observacionesGeneralesFotoURL} target="_blank" mt={4} display="block">
+                Ver foto
+              </Anchor>
+            )}
           </Paper>
         </>
       )}
@@ -465,6 +574,7 @@ export default function ViajeDetalle() {
       destinos={destinos}
       cargasCombustible={cargasCombustible}
       destinosMap={destinosMap}
+      incidentes={incidentes}
     />
     </>
   )

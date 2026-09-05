@@ -21,15 +21,21 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import com.example.checklistchofer.data.FirebaseRepository
 import com.example.checklistchofer.ui.screens.ChecklistScreen
 import com.example.checklistchofer.ui.screens.ControlViajeScreen
 import com.example.checklistchofer.ui.screens.ViajeScreen
 import com.example.checklistchofer.ui.theme.ChecklistChoferTheme
+import kotlinx.coroutines.launch
 
 sealed class Pantalla {
     object Inicio : Pantalla()
@@ -115,6 +121,7 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                     is Pantalla.RetomarViaje -> RetomarViajeScreen(
+                        viajeId = currentScreen.viajeId,
                         onContinuar = {
                             screenState.value = if (currentScreen.pantallaGuardada == VALOR_CONTROL) {
                                 Pantalla.ControlViaje(currentScreen.viajeId)
@@ -136,9 +143,14 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RetomarViajeScreen(
+    viajeId: String,
     onContinuar: () -> Unit,
     onNuevoViaje: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    val repository = remember { FirebaseRepository() }
+    var cancelando by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -170,15 +182,28 @@ fun RetomarViajeScreen(
             )
             Button(
                 onClick = onContinuar,
+                enabled = !cancelando,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Continuar con el viaje en curso")
             }
             OutlinedButton(
-                onClick = onNuevoViaje,
+                onClick = {
+                    cancelando = true
+                    scope.launch {
+                        try {
+                            repository.cancelarViaje(viajeId)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        } finally {
+                            onNuevoViaje()
+                        }
+                    }
+                },
+                enabled = !cancelando,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Cancelar e iniciar un nuevo viaje")
+                Text(if (cancelando) "Cancelando..." else "Cancelar e iniciar un nuevo viaje")
             }
             Spacer(modifier = Modifier.weight(1f))
         }

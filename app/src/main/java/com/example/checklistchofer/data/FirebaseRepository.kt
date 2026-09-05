@@ -246,6 +246,16 @@ class FirebaseRepository {
             .await()
     }
 
+    // Se llama al elegir "Cancelar e iniciar un nuevo viaje" en la pantalla
+    // "Viaje en curso" — antes esto dejaba el viaje huérfano sin ninguna marca,
+    // por lo que se veía "Activo" para siempre en el Supervisor.
+    suspend fun cancelarViaje(viajeId: String) {
+        db.collection("viajes")
+            .document(viajeId)
+            .update("cancelado", true)
+            .await()
+    }
+
     suspend fun getViajesByChofer(choferId: String): List<Viaje> {
         return db.collection("viajes")
             .whereEqualTo("choferId", choferId)
@@ -293,6 +303,18 @@ class FirebaseRepository {
             .collection("destinos")
             .document(destino.id)
             .set(destino)
+            .await()
+    }
+
+    // Borrado real (no soft-delete): un destino del itinerario solo se puede
+    // quitar antes de que el viaje inicie (ver ControlViajeScreen), momento en
+    // el que el registro todavía no tiene ningún dato real que conservar.
+    suspend fun deleteDestino(viajeId: String, destinoId: String) {
+        db.collection("viajes")
+            .document(viajeId)
+            .collection("destinos")
+            .document(destinoId)
+            .delete()
             .await()
     }
 

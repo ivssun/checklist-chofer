@@ -60,7 +60,7 @@ function Pie() {
 function FilaSiNo({ label, campo }) {
   const valor = campo?.valor
   return (
-    <tr>
+    <tr className="cli-fila-obs-doble">
       <td className="cli-td-label">{label}</td>
       <td className="cli-td-check"><Casilla marcada={esValorPositivo(valor)} /></td>
       <td className="cli-td-check"><Casilla marcada={esValorNegativo(valor)} /></td>
@@ -92,7 +92,7 @@ function FilaLibre({ label, valor, observacion }) {
   )
 }
 
-export default function ImpresionChecklist({ viaje, chofer, destinos, cargasCombustible, destinosMap }) {
+export default function ImpresionChecklist({ viaje, chofer, destinos, cargasCombustible, destinosMap, incidentes = [] }) {
   const tipoMarcado = (tipo) => viaje.tipoUnidad === tipo
 
   return (
@@ -123,6 +123,12 @@ export default function ImpresionChecklist({ viaje, chofer, destinos, cargasComb
               <td className="cli-th-label">{viaje.detalleRenta ? 'DETALLE' : ''}</td>
               <td className="cli-td-valor">{viaje.detalleRenta || ''}</td>
             </tr>
+            {viaje.canastillasIniciales != null && (
+              <tr>
+                <td className="cli-th-label">CANASTILLAS INICIALES</td>
+                <td className="cli-td-valor" colSpan={5}>{viaje.canastillasIniciales}</td>
+              </tr>
+            )}
           </tbody>
         </table>
 
@@ -286,6 +292,30 @@ export default function ImpresionChecklist({ viaje, chofer, destinos, cargasComb
           <b>Observaciones generales:</b>
           <div className="cli-obs-caja">{viaje.observacionesGenerales || ''}</div>
         </div>
+
+        {incidentes.length > 0 && (
+          <>
+            <div className="cli-seccion">INCIDENTES REPORTADOS</div>
+            <table className="cli-tabla">
+              <thead>
+                <tr>
+                  <th>FECHA</th>
+                  <th className="cli-th-obs">DESCRIPCIÓN</th>
+                  <th>ESTADO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incidentes.map((inc) => (
+                  <tr key={inc.id}>
+                    <td>{fmtFechaHora(inc.fecha)}</td>
+                    <td className="cli-td-obs">{inc.descripcion}</td>
+                    <td>{inc.estado}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
         <Pie />
       </div>

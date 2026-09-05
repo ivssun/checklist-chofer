@@ -3,6 +3,7 @@ package com.example.checklistchofer.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.checklistchofer.data.Destino
+import com.example.checklistchofer.data.DestinoCatalogo
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -61,6 +63,8 @@ fun ControlViajeScreen(
 ) {
     val viaje by viewModel.viaje.collectAsState()
     val destinos by viewModel.destinos.collectAsState()
+    val destinosCatalogo by viewModel.destinosCatalogo.collectAsState()
+    val camion by viewModel.camion.collectAsState()
     val cargasCombustible by viewModel.cargasCombustible.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -95,9 +99,13 @@ fun ControlViajeScreen(
     var mostrarDialogoLlegada by remember { mutableStateOf<Destino?>(null) }
     var mostrarDialogoCombustible by remember { mutableStateOf(false) }
     var mostrarDialogoIncidente by remember { mutableStateOf(false) }
+    var editandoItinerario by remember { mutableStateOf(false) }
 
     val destinoActual = destinos.firstOrNull { it.fechaLlegada == null }
     val concluido = viaje?.concluido == true
+    // El itinerario solo se puede editar mientras el viaje no ha arrancado
+    // (ningún destino tiene fechaSalida todavía) — feedback cliente real 2026-09-04.
+    val itinerarioEditable = !concluido && destinos.isNotEmpty() && destinos.all { it.fechaSalida == null }
 
     Scaffold(
         topBar = {
@@ -130,12 +138,36 @@ fun ControlViajeScreen(
                 viaje?.let {
                     Text("Placa: ${it.placa}", fontWeight = FontWeight.SemiBold)
                     Text("No. de unidad / económico: ${it.economico}")
+                    it.canastillasIniciales?.let { canastillas ->
+                        Text("Canastillas iniciales: $canastillas")
+                    }
                 }
 
-                Text("Itinerario", fontWeight = FontWeight.Bold)
-                destinos.forEach { destino ->
-                    ItinerarioItem(destino)
-                    HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Itinerario", fontWeight = FontWeight.Bold)
+                    if (itinerarioEditable) {
+                        OutlinedButton(onClick = { editandoItinerario = !editandoItinerario }) {
+                            Text(if (editandoItinerario) "Listo" else "✏️ Editar")
+                        }
+                    }
+                }
+
+                if (editandoItinerario) {
+                    SeccionItinerarioEditable(
+                        destinos = destinos,
+                        destinosCatalogo = destinosCatalogo,
+                        onAgregarDestino = { viewModel.agregarDestinoAlItinerario(it) },
+                        onEliminarDestino = { viewModel.eliminarDestinoDelItinerario(it) }
+                    )
+                } else {
+                    destinos.forEach { destino ->
+                        ItinerarioItem(destino)
+                        HorizontalDivider()
+                    }
                 }
 
                 if (concluido) {
@@ -196,18 +228,29 @@ fun ControlViajeScreen(
     mostrarDialogoIniciar?.let { destino ->
         DialogoIniciarDestino(
             destino = destino,
+            kilometrajeUltimoServicio = camion?.kilometrajeUltimoServicio,
+            kmFinalDestinoAnterior = destinos.firstOrNull { it.orden == destino.orden - 1 }?.kmFinal,
             onDismiss = { mostrarDialogoIniciar = null },
-            onConfirmar = { km ->
-                viewModel.iniciarDestino(destino, km)
+            onConfirmar = { km, canastillasIniciales ->
+                viewModel.iniciarDestino(destino, km, canastillasIniciales)
                 mostrarDialogoIniciar = null
             }
         )
     }
 
     mostrarDialogoLlegada?.let { destino ->
+        // Cuántas canastillas trae disponibles el camión en este punto del
+        // viaje: iniciales - entregadas + regresadas de los destinos ya
+        // completados antes de este (no se puede entregar más de eso).
+        val canastillasDisponibles = viaje?.canastillasIniciales?.let { iniciales ->
+            val previos = destinos.filter { it.orden < destino.orden }
+            iniciales - previos.sumOf { it.canastillasEntregadas ?: 0 } +
+                previos.sumOf { it.canastillasRegresadas ?: 0 }
+        }
         DialogoLlegadaDestino(
             viajeId = viajeId,
             destino = destino,
+            canastillasDisponibles = canastillasDisponibles,
             onDismiss = { mostrarDialogoLlegada = null },
             onConfirmar = { kmFinal, entregadas, regresadas, fotoURL ->
                 viewModel.registrarLlegada(destino, kmFinal, entregadas, regresadas, fotoURL)
@@ -239,6 +282,62 @@ fun ControlViajeScreen(
 }
 
 @Composable
+fun SeccionItinerarioEditable(
+    destinos: List<Destino>,
+    destinosCatalogo: List<DestinoCatalogo>,
+    onAgregarDestino: (DestinoCatalogo) -> Unit,
+    onEliminarDestino: (Destino) -> Unit
+) {
+    var expandido by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        destinos.forEach { destino ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("${destino.orden + 1}. ${destino.cedisDestino}")
+                Button(
+                    onClick = { onEliminarDestino(destino) },
+                    enabled = destinos.size > 1
+                ) {
+                    Text("X")
+                }
+            }
+        }
+
+        OutlinedButton(
+            onClick = { expandido = !expandido },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("+ Agregar destino")
+        }
+
+        if (expandido) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                destinosCatalogo.forEach { destinoCatalogo ->
+                    OutlinedButton(
+                        onClick = {
+                            onAgregarDestino(destinoCatalogo)
+                            expandido = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(destinoCatalogo.nombre)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun ItinerarioItem(destino: Destino) {
     val estado = when {
         destino.fechaLlegada != null -> "Completado (Km ${destino.kmInicial} → ${destino.kmFinal})"
@@ -261,34 +360,85 @@ fun ItinerarioItem(destino: Destino) {
 @Composable
 fun DialogoIniciarDestino(
     destino: Destino,
+    kilometrajeUltimoServicio: Long?,
+    kmFinalDestinoAnterior: Int?,
     onDismiss: () -> Unit,
-    onConfirmar: (Int) -> Unit
+    onConfirmar: (Int, Int?) -> Unit
 ) {
     var kmInicial by remember { mutableStateOf("") }
+    var canastillasIniciales by remember { mutableStateOf("") }
+    val kmVal = kmInicial.toIntOrNull()
+    val canastillasVal = canastillasIniciales.toIntOrNull()
+    // Con cuántas canastillas sale el camión de la matriz solo se pregunta al
+    // iniciar el primer destino del itinerario (2026-09-05, feedback cliente real).
+    val esPrimerDestino = destino.orden == 0
+    val canastillasFocus = remember { FocusRequester() }
+    // Un camión no debería "perder" kilómetros, pero muy rara vez un taller
+    // ajusta el kilometraje registrado — no se prohíbe, solo se pide
+    // confirmar que no fue un error de captura antes de continuar.
+    val esKmSospechoso = kilometrajeUltimoServicio != null && kmVal != null && kmVal < kilometrajeUltimoServicio
+    // Este caso sí se bloquea de plano: dentro del mismo viaje no hay ningún
+    // escenario real en el que el km baje del destino anterior al siguiente
+    // (a diferencia del ajuste raro de taller de arriba).
+    val kmMenorAlAnterior = kmFinalDestinoAnterior != null && kmVal != null && kmVal < kmFinalDestinoAnterior
+    val formularioValido = kmVal != null && !kmMenorAlAnterior && (!esPrimerDestino || canastillasVal != null)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Iniciar viaje a ${destino.cedisDestino}") },
         text = {
-            OutlinedTextField(
-                value = kmInicial,
-                onValueChange = { kmInicial = it.filter { c -> c.isDigit() } },
-                label = { Text("Km inicial") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = kmInicial,
+                    onValueChange = { kmInicial = it.filter { c -> c.isDigit() } },
+                    label = { Text("Km inicial") },
+                    singleLine = true,
+                    isError = kmMenorAlAnterior,
+                    supportingText = {
+                        if (kmMenorAlAnterior) {
+                            Text("No puede ser menor al km final del destino anterior ($kmFinalDestinoAnterior)")
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = if (esPrimerDestino) ImeAction.Next else ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onNext = { canastillasFocus.requestFocus() }),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (esKmSospechoso) {
+                    Text(
+                        "⚠️ Este kilometraje es menor al registrado en el último servicio " +
+                            "($kilometrajeUltimoServicio km). Verifica que no sea un error de captura.",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (esPrimerDestino) {
+                    OutlinedTextField(
+                        value = canastillasIniciales,
+                        onValueChange = { canastillasIniciales = it.filter { c -> c.isDigit() } },
+                        label = { Text("Canastillas iniciales") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(canastillasFocus)
+                    )
+                }
+            }
         },
         confirmButton = {
             Button(
-                onClick = { kmInicial.toIntOrNull()?.let { onConfirmar(it) } },
-                enabled = kmInicial.toIntOrNull() != null
+                onClick = { if (formularioValido) onConfirmar(kmVal!!, canastillasVal) },
+                enabled = formularioValido
             ) {
-                Text("Confirmar")
+                Text(if (esKmSospechoso) "Sí, confirmar" else "Confirmar")
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) { Text("Cancelar") }
+            OutlinedButton(onClick = onDismiss) {
+                Text(if (esKmSospechoso) "Revisar" else "Cancelar")
+            }
         }
     )
 }
@@ -298,6 +448,7 @@ fun DialogoIniciarDestino(
 fun DialogoLlegadaDestino(
     viajeId: String,
     destino: Destino,
+    canastillasDisponibles: Int?,
     onDismiss: () -> Unit,
     onConfirmar: (Int, Int, Int, String?) -> Unit
 ) {
@@ -309,6 +460,15 @@ fun DialogoLlegadaDestino(
     val entregadasFocus = remember { FocusRequester() }
     val regresadasFocus = remember { FocusRequester() }
 
+    val kmFinalVal = kmFinal.toIntOrNull()
+    val entregadasVal = canastillasEntregadas.toIntOrNull()
+    val regresadasVal = canastillasRegresadas.toIntOrNull()
+    // No basta con marcar el error después de intentar confirmar (snackbar):
+    // el botón se deshabilita de una vez si el km no es válido.
+    val kmFinalInvalido = kmFinalVal != null && destino.kmInicial != null && kmFinalVal <= destino.kmInicial
+    // No se pueden entregar más canastillas de las que trae disponibles el camión.
+    val entregadasExceden = canastillasDisponibles != null && entregadasVal != null && entregadasVal > canastillasDisponibles
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Ya llegué a ${destino.cedisDestino}") },
@@ -319,6 +479,12 @@ fun DialogoLlegadaDestino(
                     onValueChange = { kmFinal = it.filter { c -> c.isDigit() } },
                     label = { Text("Km final") },
                     singleLine = true,
+                    isError = kmFinalInvalido,
+                    supportingText = {
+                        if (kmFinalInvalido) {
+                            Text("Debe ser mayor al km inicial (${destino.kmInicial})")
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { entregadasFocus.requestFocus() }),
                     modifier = Modifier.fillMaxWidth()
@@ -328,6 +494,12 @@ fun DialogoLlegadaDestino(
                     onValueChange = { canastillasEntregadas = it.filter { c -> c.isDigit() } },
                     label = { Text("Canastillas entregadas") },
                     singleLine = true,
+                    isError = entregadasExceden,
+                    supportingText = {
+                        if (entregadasExceden) {
+                            Text("El camión solo trae $canastillasDisponibles disponibles")
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { regresadasFocus.requestFocus() }),
                     modifier = Modifier
@@ -352,16 +524,15 @@ fun DialogoLlegadaDestino(
             }
         },
         confirmButton = {
-            val kmFinalVal = kmFinal.toIntOrNull()
-            val entregadasVal = canastillasEntregadas.toIntOrNull()
-            val regresadasVal = canastillasRegresadas.toIntOrNull()
+            val formularioValido = !kmFinalInvalido && !entregadasExceden &&
+                kmFinalVal != null && entregadasVal != null && regresadasVal != null
             Button(
                 onClick = {
-                    if (kmFinalVal != null && entregadasVal != null && regresadasVal != null) {
-                        onConfirmar(kmFinalVal, entregadasVal, regresadasVal, fotoURL)
+                    if (formularioValido) {
+                        onConfirmar(kmFinalVal!!, entregadasVal!!, regresadasVal!!, fotoURL)
                     }
                 },
-                enabled = kmFinalVal != null && entregadasVal != null && regresadasVal != null
+                enabled = formularioValido
             ) {
                 Text("Confirmar")
             }

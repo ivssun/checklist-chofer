@@ -46,6 +46,8 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
   fecha: timestamp,           // automática al crear
   horaLlegadaMatriz: timestamp|null,  // se asigna al crear
   concluido: bool,            // false al crear, true al completar último destino
+  cancelado: bool,            // false al crear; true si el chofer elige "Cancelar e iniciar un nuevo viaje" en la pantalla "Viaje en curso" (2026-09-05, feedback cliente real — antes el viaje quedaba huérfano sin ninguna marca y se veía "Activo" para siempre en el Supervisor)
+  canastillasIniciales: number|null, // con cuántas canastillas sale el camión de la matriz — se captura junto con el km inicial del primer destino, en ControlViajeScreen, no en el checklist (2026-09-05, feedback cliente real)
 
   combustibleYLimpieza: {
     tanqueLlenoSalida: { valor: "SÍ"|"NO"|"", observacion: string, fotoURL: string|null },
@@ -79,7 +81,8 @@ App para digitalizar el checklist diario de seguridad de choferes de una flotill
     // cada uno: { valor: "SÍ"|"NO"|"", observacion: string, fotoURL: string|null } (mismo CheckField que combustibleYLimpieza/inspeccionGeneral, no bool)
   },
 
-  observacionesGenerales: string
+  observacionesGenerales: string,
+  observacionesGeneralesFotoURL: string|null  // foto opcional (2026-09-04, feedback cliente real), para reportar algo extraordinario no cubierto por el resto del formulario
 }
 
 ### Subcolección viajes/{viajeId}/destinos
@@ -123,7 +126,7 @@ Nivel raíz (no subcolección de `viajes`) para que el Supervisor pueda consulta
 ## FLUJO APP ANDROID (Chofer)
 
 ### Reanudación de sesión (2026-08-25)
-Si se cierra la app con un viaje sin concluir (después de "Iniciar Viaje" pero antes de terminar el checklist, o a mitad del itinerario), la sesión se persiste localmente (SharedPreferences: `viajeId` + pantalla). Al reabrir, **no se retoma directo** — se muestra una pantalla intermedia "Viaje en curso" con dos opciones: "Continuar con el viaje en curso" o "Cancelar e iniciar un nuevo viaje". Se decidió no forzar la continuación porque el chofer puede haber tenido el viaje cancelado o le cambiaron de unidad mientras la app estaba cerrada. Si elige "nuevo viaje", el registro anterior queda huérfano en Firestore (`concluido: false`, sin checklist) — no se borra ni se marca de ninguna forma especial por ahora.
+Si se cierra la app con un viaje sin concluir (después de "Iniciar Viaje" pero antes de terminar el checklist, o a mitad del itinerario), la sesión se persiste localmente (SharedPreferences: `viajeId` + pantalla). Al reabrir, **no se retoma directo** — se muestra una pantalla intermedia "Viaje en curso" con dos opciones: "Continuar con el viaje en curso" o "Cancelar e iniciar un nuevo viaje". Se decidió no forzar la continuación porque el chofer puede haber tenido el viaje cancelado o le cambiaron de unidad mientras la app estaba cerrada. Si elige "nuevo viaje", el registro anterior queda huérfano en Firestore (`concluido: false`, sin checklist) — no se borra, pero **sí se marca** (`cancelado: true`, ver esquema `viajes` arriba) antes de navegar a Pantalla 1 (2026-09-05, IMPLEMENTADO ✅ — feedback cliente real: sin esta marca el Supervisor veía el viaje huérfano como "Activo" para siempre). El Supervisor web (Dashboard y Detalle de viaje) muestra badge gris "Cancelado" en vez de "Activo"/"Concluido" cuando `cancelado === true`.
 
 **Fallback si el viaje ya no existe**: si al retomar (Checklist o Control de Viaje) el `viajeId` guardado localmente ya no tiene documento en Firestore (por ejemplo, se borró manualmente desde la consola), la app detecta que `viaje == null` tras terminar de cargar y regresa sola a Pantalla 1 (limpia la sesión guardada) en vez de dejar una pantalla en blanco sin salida.
 
@@ -133,6 +136,12 @@ Si se cierra la app con un viaje sin concluir (después de "Iniciar Viaje" pero 
 El cliente pidió que no se pierda el progreso si el chofer cierra la app a medio llenar el formulario. La implementación real difiere según en qué pantalla esté, porque el flujo del código está partido en 3 pantallas encadenadas (`ViajeScreen` → `ChecklistScreen` → `ControlViajeScreen`), no una sola "Pantalla 1" como se describía antes en este documento:
 - **`ViajeScreen`** (datos básicos + destinos, ANTES de que exista el doc `viajes/{id}`): hoy si se cierra la app aquí se pierde todo. Se guardará un **borrador local** (SharedPreferences/DataStore) de los campos ya capturados, y se restaurará automáticamente al reabrir la app en esta pantalla.
 - **`ChecklistScreen`** (combustible/inspección/documentación/observaciones, el doc del viaje YA existe): en vez de guardar todo hasta el botón final, cada respuesta se escribe directo al doc de Firestore según se va capturando (autoguardado incremental). Así, si la app se cierra a mitad del checklist, no hay nada que perder — ya estaba guardado — y la reanudación de sesión existente (`RetomarViaje` → `Pantalla.Checklist`) ya lo recupera todo tal cual quedó.
+
+### ChecklistScreen: navegación por secciones (2026-09-04, IMPLEMENTADO ✅ — feedback cliente real)
+El revisor probó la app y señaló 3 puntos de UX en `ChecklistScreen` (la pantalla con las Secciones C-F descritas más abajo, no `ViajeScreen`):
+1. **Antes**: todas las preguntas de las 5 secciones (Itinerario, Combustible y Limpieza, Inspección General, Documentación y Equipo, Observaciones Generales) se mostraban en una sola pantalla con scroll largo. **Ahora**: `ChecklistScreen` tiene una pantalla "hub" con una tarjeta por sección — título, contador "X de Y puntos" y un anillo de progreso (verde/✓ cuando está completa) — que al tocarla navega a una pantalla propia solo con las preguntas de esa sección. Se implementó con navegación por estado local (`seccionAbierta: SeccionChecklist?` + `BackHandler`), mismo patrón que usa `MainActivity` para navegar entre pantallas (sin librería de Navigation Compose, por velocidad). El botón "Guardar Checklist Completo" se quedó en el hub, no dentro de cada sección.
+2. **Nivel de combustible para thermo**: antes era un botón "Seleccionar" que desplegaba las 5 opciones (dropdown). Ahora las 5 opciones (`0, 1/4, 1/2, 3/4, Lleno`) se muestran directamente como botones visibles (2 filas), igual que el resto de preguntas SÍ/NO y BIEN/MAL/N-A — se ahorra el click de desplegar.
+3. **Observaciones Generales**: antes solo tenía el cuadro de texto. Ahora también tiene botón de cámara (mismo componente `BotonFotoCamara` que el resto del formulario, solo cámara en vivo) para reportar con foto algo extraordinario no cubierto por el resto del checklist. Nuevo campo en Firestore: `observacionesGeneralesFotoURL` (ver esquema `viajes` arriba).
 
 ### Pantalla 1: Formulario inicial (ViajeScreen) — IMPLEMENTADO ✅
 
@@ -196,7 +205,7 @@ El cliente pidió que no se pierda el progreso si el chofer cierra la app a medi
 - Navega a Pantalla 2
 
 ### Pantalla 2: Control de viaje
-- Muestra itinerario congelado
+- Muestra itinerario congelado — **excepto** mientras el viaje no ha arrancado (ningún destino con `fechaSalida`), donde aparece un botón "✏️ Editar" junto a "Itinerario" que permite agregar/quitar destinos igual que en el checklist (2026-09-04, IMPLEMENTADO ✅ — feedback cliente real). Al quitar un destino se renumera `orden` de los restantes para que siga siendo contiguo. Mínimo 1 destino (no se puede quitar el último). El botón desaparece en cuanto se inicia el primer destino.
 - Botón dinámico según estado del destino pendiente:
   - Sin fechaSalida → "Iniciar viaje a [destino]" → pide km inicial, guarda fechaSalida (auto) + kmInicial
   - Con fechaSalida sin fechaLlegada → "Ya llegué a [destino]" → pide km final, canastillas entregadas/regresadas, nota+foto opcionales → guarda fechaLlegada (auto)
@@ -245,9 +254,10 @@ Hay 2 tipos de usuario en el sistema: **Chofer** (Android) y **Supervisor** (est
 
 ## Reglas de negocio críticas
 1. Alerta servicio: kmInicial primer destino − kilometrajeUltimoServicio >= 9000 -> aviso en escritorio
+   - **Advertencia complementaria (2026-09-04, IMPLEMENTADO ✅ — feedback cliente real)**: un camión no debería "perder" kilómetros, pero muy rara vez un taller ajusta el kilometraje registrado — por eso NO se prohíbe capturar un km inicial menor a `kilometrajeUltimoServicio`, solo se exige confirmar que no fue un error de captura. Vive en Android (`DialogoIniciarDestino`, pantalla "Iniciar viaje a X"): si el km tecleado es menor al de `kilometrajeUltimoServicio` del camión (aplica solo GDE/MED, que sí tienen camión de catálogo), se muestra advertencia en rojo y los botones cambian a "Revisar" / "Sí, confirmar" en vez de "Cancelar" / "Confirmar". El Supervisor web (`ViajeDetalle.jsx`) también muestra el campo "Km último servicio" del camión y una alerta roja si detecta el mismo caso, para que quede visible al revisar el viaje.
 2. Rendimiento combustible: ver fórmula arriba, condicionado a tanque lleno
 3. Presión de llantas: filas = tamaño de posicionesLlantas del camión (fijo, no editable) para GDE/MED; para RENTA y OTRO arranca en 6 filas genéricas ("Delantera Izquierda", etc.) pero el chofer puede agregar ("+ Agregar llanta", etiqueta autogenerada "Llanta N") o quitar filas libremente (mínimo 1), ya que no hay un camión de catálogo que fije la cantidad real (2026-08-25)
-4. Itinerario se congela tras guardar checklist principal
+4. Itinerario se congela tras guardar checklist principal, **excepto**: en Pantalla 2 (Control de Viaje) se puede seguir editando (agregar/quitar destinos) mientras el viaje no haya arrancado — es decir, mientras ningún destino tenga `fechaSalida` (2026-09-04, feedback cliente real: el chofer puede notar que olvidó un destino antes de arrancar). En cuanto se inicia el primer destino ("Iniciar viaje a X"), se congela de verdad y ya no se puede editar.
 5. Fotos: SOLO cámara en vivo, nunca galería (Intent de cámara directo)
 6. Firmas: NO se capturan digitalmente, se firman a mano sobre documento impreso
 
